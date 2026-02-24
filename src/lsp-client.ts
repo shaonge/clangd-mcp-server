@@ -41,10 +41,10 @@ export class LSPClient {
   private stdout: Readable;
   private nextId: number = 1;
   private pendingRequests: Map<number | string, PendingRequest> = new Map();
-  private buffer: string = '';
+  private buffer: Buffer = Buffer.alloc(0);
   private notificationHandlers: Map<string, (params: any) => void> = new Map();
   private readonly maxMessageSize: number = 100 * 1024 * 1024; // 100 MB limit
-  private dataHandler?: (chunk: Buffer) => void;
+  private dataHandler?: (chunk: Buffer | string) => void;
   private errorHandler?: (error: Error) => void;
   private endHandler?: () => void;
 
@@ -55,8 +55,9 @@ export class LSPClient {
   }
 
   private setupStreamHandlers(): void {
-    this.dataHandler = (chunk: Buffer) => {
-      this.buffer += chunk.toString('utf-8');
+    this.dataHandler = (chunk: Buffer | string) => {
+      const chunkBuffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk, 'utf8');
+      this.buffer = Buffer.concat([this.buffer, chunkBuffer]);
       this.processBuffer();
     };
 
@@ -80,55 +81,54 @@ export class LSPClient {
 
   private processBuffer(): void {
     while (true) {
-      // Look for Content-Length header
-      const headerMatch = this.buffer.match(/Content-Length: (\d+)\r\n/);
-      if (!headerMatch) {
+      const headerStart = this.buffer.indexOf('Content-Length:');
+      if (headerStart === -1) {
         break;
       }
 
-      const contentLength = parseInt(headerMatch[1], 10);
+      if (headerStart > 0) {
+        this.buffer = this.buffer.slice(headerStart);
+      }
 
-      // Check for malformed or malicious message size
+      const headerEnd = this.buffer.indexOf('\r\n\r\n');
+      if (headerEnd === -1) {
+        break;
+      }
+
+      const headerText = this.buffer.slice(0, headerEnd).toString('ascii');
+      const headerMatch = headerText.match(/(?:^|\r\n)Content-Length:\s*(\d+)(?:\r\n|$)/i);
+      if (!headerMatch) {
+        this.buffer = this.buffer.slice(headerEnd + 4);
+        continue;
+      }
+
+      const contentLength = parseInt(headerMatch[1], 10);
+      if (!Number.isFinite(contentLength) || contentLength < 0) {
+        logger.error(`Invalid Content-Length: ${contentLength}, skipping message`);
+        this.buffer = this.buffer.slice(headerEnd + 4);
+        continue;
+      }
+
       if (contentLength > this.maxMessageSize) {
         logger.error(`Message size ${contentLength} exceeds maximum ${this.maxMessageSize}, dropping connection`);
         this.close();
         return;
       }
 
-      if (contentLength < 0 || !Number.isFinite(contentLength)) {
-        logger.error(`Invalid Content-Length: ${contentLength}, skipping message`);
-        // Skip to next potential message by removing the malformed header
-        const headerEnd = this.buffer.indexOf('\r\n\r\n');
-        if (headerEnd !== -1) {
-          this.buffer = this.buffer.substring(headerEnd + 4);
-        } else {
-          this.buffer = '';
-        }
-        continue;
-      }
-
-      const headerEnd = this.buffer.indexOf('\r\n\r\n');
-
-      if (headerEnd === -1) {
-        break;
-      }
-
       const messageStart = headerEnd + 4;
       const messageEnd = messageStart + contentLength;
-
       if (this.buffer.length < messageEnd) {
-        // Not enough data yet
         break;
       }
 
-      const messageText = this.buffer.substring(messageStart, messageEnd);
-      this.buffer = this.buffer.substring(messageEnd);
+      const messageBytes = this.buffer.slice(messageStart, messageEnd);
+      this.buffer = this.buffer.slice(messageEnd);
 
       try {
-        const message = JSON.parse(messageText);
+        const message = JSON.parse(messageBytes.toString('utf8'));
         this.handleMessage(message);
       } catch (error) {
-        logger.error('Failed to parse LSP message:', error, 'Message:', messageText);
+        logger.error('Failed to parse LSP message:', error, 'Message:', messageBytes.toString('utf8'));
       }
     }
   }

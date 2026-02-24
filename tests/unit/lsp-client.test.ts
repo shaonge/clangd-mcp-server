@@ -153,6 +153,25 @@ describe('LSPClient', () => {
 
       await expect(responsePromise).resolves.toBe('success');
     });
+
+    it('should parse back-to-back messages with Unicode payload correctly', async () => {
+      const promise1 = client.request('method1');
+      const promise2 = client.request('method2');
+
+      const requests = parseLSPMessages(stdin.getWrittenData());
+      const response1 = { jsonrpc: '2.0', id: requests[0].id, result: { text: '中文' } };
+      const response2 = { jsonrpc: '2.0', id: requests[1].id, result: 'ok' };
+
+      const content1 = JSON.stringify(response1);
+      const content2 = JSON.stringify(response2);
+      const fullMessage1 = `Content-Length: ${Buffer.byteLength(content1, 'utf8')}\r\n\r\n${content1}`;
+      const fullMessage2 = `Content-Length: ${Buffer.byteLength(content2, 'utf8')}\r\n\r\n${content2}`;
+
+      stdout.pushData(fullMessage1 + fullMessage2);
+
+      await expect(promise1).resolves.toMatchObject({ text: '中文' });
+      await expect(promise2).resolves.toBe('ok');
+    });
   });
 
   describe('notify', () => {

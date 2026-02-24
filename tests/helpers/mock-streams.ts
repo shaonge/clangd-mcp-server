@@ -77,29 +77,42 @@ export function sendLSPMessage(stream: MockReadableStream, message: any): void {
 /**
  * Helper to parse LSP messages from written data
  */
-export function parseLSPMessages(data: string): any[] {
+export function parseLSPMessages(data: string | Buffer): any[] {
   const messages: any[] = [];
-  let remaining = data;
+  let remaining = Buffer.isBuffer(data) ? data : Buffer.from(data, 'utf8');
 
   while (remaining.length > 0) {
-    const headerMatch = remaining.match(/Content-Length: (\d+)\r\n\r\n/);
-    if (!headerMatch) break;
+    const headerStart = remaining.indexOf('Content-Length:');
+    if (headerStart === -1) break;
+
+    if (headerStart > 0) {
+      remaining = remaining.slice(headerStart);
+    }
+
+    const headerEnd = remaining.indexOf('\r\n\r\n');
+    if (headerEnd === -1) break;
+
+    const headerText = remaining.slice(0, headerEnd).toString('ascii');
+    const headerMatch = headerText.match(/(?:^|\r\n)Content-Length:\s*(\d+)(?:\r\n|$)/i);
+    if (!headerMatch) {
+      remaining = remaining.slice(headerEnd + 4);
+      continue;
+    }
 
     const contentLength = parseInt(headerMatch[1], 10);
-    const headerEnd = remaining.indexOf('\r\n\r\n');
     const messageStart = headerEnd + 4;
     const messageEnd = messageStart + contentLength;
 
     if (remaining.length < messageEnd) break;
 
-    const messageText = remaining.substring(messageStart, messageEnd);
+    const messageText = remaining.slice(messageStart, messageEnd).toString('utf8');
     try {
       messages.push(JSON.parse(messageText));
     } catch (e) {
       // Skip malformed messages
     }
 
-    remaining = remaining.substring(messageEnd);
+    remaining = remaining.slice(messageEnd);
   }
 
   return messages;

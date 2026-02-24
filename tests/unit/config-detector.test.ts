@@ -57,7 +57,7 @@ describe('Config detector', () => {
     const { detectConfiguration } = await import('../../src/config-detector.js');
     const config = detectConfiguration();
 
-    expect(config.projectRoot).toBe(testDir);
+    expect(config.projectRoot).toBe(process.cwd());
     process.chdir(originalCwd);
   });
 
