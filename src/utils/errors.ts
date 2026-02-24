@@ -62,7 +62,7 @@ export async function withRetry<T>(
   } = {}
 ): Promise<T> {
   const {
-    maxAttempts = 3,
+    maxAttempts = 2,
     initialDelayMs = 100,
     maxDelayMs = 5000,
     shouldRetry = (error) => isTransientError(error)
