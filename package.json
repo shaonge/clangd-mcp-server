@@ -1,21 +1,36 @@
 {
-  "name": "clangd-mcp-server",
-  "version": "0.1.0",
+  "name": "@byted/clangd-mcp-server",
+  "version": "0.1.7",
   "description": "MCP server that bridges Claude Code with clangd LSP for enhanced C++ code intelligence",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "type": "module",
   "bin": {
-    "clangd-mcp-server": "./dist/index.js"
+    "clangd-mcp-server": "dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shaonge/clangd-mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shaonge/clangd-mcp-server/issues"
+  },
+  "homepage": "https://github.com/shaonge/clangd-mcp-server#readme",
   "scripts": {
     "build": "tsc",
+    "prepublishOnly": "npm run build",
     "watch": "tsc --watch",
     "test": "NODE_OPTIONS='--experimental-vm-modules' ./node_modules/.bin/jest",
     "test:watch": "NODE_OPTIONS='--experimental-vm-modules' ./node_modules/.bin/jest --watch",
     "test:coverage": "NODE_OPTIONS='--experimental-vm-modules' ./node_modules/.bin/jest --coverage",
     "test:unit": "NODE_OPTIONS='--experimental-vm-modules' ./node_modules/.bin/jest tests/unit",
     "test:integration": "NODE_OPTIONS='--experimental-vm-modules' ./node_modules/.bin/jest tests/integration",
-    "test:e2e": "NODE_OPTIONS='--experimental-vm-modules' ./node_modules/.bin/jest tests/e2e"
+    "test:e2e": "NODE_OPTIONS='--experimental-vm-modules' ./node_modules/.bin/jest tests/e2e",
+    "release:check": "test -z \"$(git status --porcelain)\" || (echo \"npm error Git working directory not clean.\" >&2 && exit 1)",
+    "release": "npm run release:check && npm version patch && npm publish --access=public"
   },
   "keywords": [
     "mcp",
