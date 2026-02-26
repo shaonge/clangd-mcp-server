@@ -65,7 +65,9 @@ function findProjectBundledClangd(projectRoot: string, isChromiumProject: boolea
   if (isChromiumProject) {
     const searchPaths = [
       'third_party/llvm-build/Release+Asserts/bin/clangd',
+      'third_party/llvm-build/Release+Asserts/bin/clangd.exe',
       'third_party/llvm-build/Release/bin/clangd',
+      'third_party/llvm-build/Release/bin/clangd.exe',
     ];
 
     for (const searchPath of searchPaths) {
@@ -113,6 +115,11 @@ export function detectConfiguration(): ClangdConfig {
       logger.info('Using system clangd from PATH');
     }
   }
+
+  if (process.platform === 'win32' && !clangdPath.endsWith('.exe')) {
+    clangdPath += '.exe';
+  }
+  logger.info('Using clangd path:', clangdPath);
 
   // Detect and log clangd version
   const version = getClangdVersion(clangdPath);
