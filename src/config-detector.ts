@@ -23,7 +23,9 @@ export interface ClangdConfig {
 function detectChromiumProject(projectRoot: string): boolean {
   const chromiumClangdPaths = [
     'third_party/llvm-build/Release+Asserts/bin/clangd',
+    'third_party/llvm-build/Release+Asserts/bin/clangd.exe',
     'third_party/llvm-build/Release/bin/clangd',
+    'third_party/llvm-build/Release/bin/clangd.exe',
   ];
 
   return chromiumClangdPaths.some(path =>
