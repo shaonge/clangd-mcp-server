@@ -253,25 +253,6 @@ async function main() {
           }
         },
         {
-          name: 'workspace_symbol_search',
-          description: 'Search for symbols across the entire workspace',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              query: {
-                type: 'string',
-                description: 'Search query for symbol names'
-              },
-              limit: {
-                type: 'number',
-                description: 'Maximum number of results to return (default: 100)',
-                default: 100
-              }
-            },
-            required: ['query']
-          }
-        },
-        {
           name: 'find_implementations',
           description: 'Find implementations of an interface or virtual method at a given location',
           inputSchema: {
