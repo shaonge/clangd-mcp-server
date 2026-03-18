@@ -11,7 +11,12 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
+import { createRequire } from 'node:module';
 import { logger } from './utils/logger.js';
+
+const require = createRequire(import.meta.url);
+const packageJson = require('../package.json');
+const VERSION: string = packageJson.version;
 import { detectConfiguration } from './config-detector.js';
 import { ClangdManager } from './clangd-manager.js';
 import { FileTracker } from './file-tracker.js';
@@ -158,12 +163,12 @@ async function ensureClangdInitialized(): Promise<void> {
  * Main server setup
  */
 async function main() {
-  logger.info('Starting clangd MCP server');
+  logger.info(`Starting clangd MCP server v${VERSION}`);
 
   const server = new Server(
     {
       name: 'clangd-mcp-server',
-      version: '0.1.0',
+      version: VERSION,
     },
     {
       capabilities: {
