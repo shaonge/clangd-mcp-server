@@ -188,7 +188,7 @@ export class LSPClient {
   /**
    * Send a request and wait for the response
    */
-  async request(method: string, params?: any, timeoutMs: number = 5000): Promise<any> {
+  async request(method: string, params?: any, timeoutMs: number = 30000): Promise<any> {
     const id = this.nextId++;
     const request: JsonRpcRequest = {
       jsonrpc: '2.0',
