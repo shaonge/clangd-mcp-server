@@ -4,6 +4,7 @@
 
 import { LSPClient } from '../lsp-client.js';
 import { FileTracker } from '../file-tracker.js';
+import { getIndexAwareResponseExtras, type IndexAwareToolOptions } from './index-aware-response.js';
 import { uriToPath } from '../utils/uri.js';
 import { withRetry } from '../utils/errors.js';
 import { Location, normalizeLocationResult } from '../utils/lsp-types.js';
@@ -13,7 +14,8 @@ export async function findImplementations(
   fileTracker: FileTracker,
   filePath: string,
   line: number,
-  column: number
+  column: number,
+  options: IndexAwareToolOptions = {}
 ): Promise<string> {
   // Ensure file is opened
   const uri = await fileTracker.ensureFileOpen(filePath);
@@ -32,8 +34,12 @@ export async function findImplementations(
   if (locations.length === 0) {
     return JSON.stringify({
       found: false,
-      message: 'No implementations found'
-    });
+      message: 'No implementations found',
+      ...getIndexAwareResponseExtras(options, {
+        operation: 'Implementation search',
+        resultEmpty: true
+      })
+    }, null, 2);
   }
 
   const formattedLocations = locations.map(loc => ({
@@ -46,6 +52,10 @@ export async function findImplementations(
   return JSON.stringify({
     found: true,
     count: formattedLocations.length,
-    locations: formattedLocations
+    locations: formattedLocations,
+    ...getIndexAwareResponseExtras(options, {
+      operation: 'Implementation search',
+      resultEmpty: false
+    })
   }, null, 2);
 }

@@ -17,14 +17,13 @@ import { logger } from './utils/logger.js';
 const require = createRequire(import.meta.url);
 const packageJson = require('../package.json');
 const VERSION: string = packageJson.version;
-import { detectConfiguration } from './config-detector.js';
+import { detectConfiguration, getFirstFileFromCompileCommands } from './config-detector.js';
 import { ClangdManager } from './clangd-manager.js';
 import { FileTracker } from './file-tracker.js';
 
 import { findDefinition } from './tools/find-definition.js';
 import { findReferences } from './tools/find-references.js';
 import { getHover } from './tools/get-hover.js';
-import { workspaceSymbolSearch } from './tools/workspace-symbol.js';
 import { findImplementations } from './tools/find-implementations.js';
 import { getDocumentSymbols } from './tools/document-symbols.js';
 import { getDiagnostics, DiagnosticsCache } from './tools/get-diagnostics.js';
@@ -65,15 +64,6 @@ function validateToolArgs(name: string, args: any): void {
       }
       break;
 
-    case 'workspace_symbol_search':
-      if (typeof args.query !== 'string') {
-        throw new Error('Invalid query: must be a string');
-      }
-      if (args.limit !== undefined && (typeof args.limit !== 'number' || !Number.isInteger(args.limit) || args.limit <= 0)) {
-        throw new Error('Invalid limit: must be a positive integer');
-      }
-      break;
-
     case 'get_document_symbols':
       if (typeof args.file_path !== 'string') {
         throw new Error('Invalid file_path: must be a string');
@@ -105,6 +95,18 @@ function validateToolArgs(name: string, args: any): void {
     default:
       // Unknown tool, will be caught by the switch below
       break;
+  }
+}
+
+/**
+ * Open a seed file to trigger clangd's lazy compilation database loading.
+ */
+async function openSeedFile(compileCommandsPath?: string): Promise<void> {
+  if (!compileCommandsPath || !fileTracker) return;
+  const seedFile = await getFirstFileFromCompileCommands(compileCommandsPath);
+  if (seedFile) {
+    logger.info('Opening seed file to trigger compilation database loading:', seedFile);
+    await fileTracker.ensureFileOpen(seedFile);
   }
 }
 
@@ -147,6 +149,20 @@ async function ensureClangdInitialized(): Promise<void> {
         if (diagnosticsCache) {
           diagnosticsCache.clearForFile(uri);
         }
+      });
+
+      // Open a seed file to trigger clangd's lazy compilation database loading.
+      // Without this, clangd won't load compile_commands.json and the background
+      // indexer will never start. Fire-and-forget: don't block initialization.
+      openSeedFile(config.compileCommandsPath).catch((error) => {
+        logger.error('Failed to open seed file:', error);
+      });
+
+      // Re-open seed file after crash restart so background indexing resumes
+      clangdManager.onRestarted(() => {
+        openSeedFile(config.compileCommandsPath).catch((error) => {
+          logger.error('Failed to open seed file after restart:', error);
+        });
       });
 
       logger.info('Clangd initialization complete');
@@ -395,7 +411,10 @@ async function main() {
             args.file_path as string,
             (args.line as number) - 1,
             (args.column as number) - 1,
-            args.include_declaration !== false
+            args.include_declaration !== false,
+            {
+              getBackgroundIndexStatus: () => clangdManager!.getBackgroundIndexStatus()
+            }
           );
           return {
             content: [{ type: 'text', text: result }]
@@ -415,24 +434,16 @@ async function main() {
           };
         }
 
-        case 'workspace_symbol_search': {
-          const result = await workspaceSymbolSearch(
-            clangdManager.getClient(),
-            args.query as string,
-            (args.limit as number) || 100
-          );
-          return {
-            content: [{ type: 'text', text: result }]
-          };
-        }
-
         case 'find_implementations': {
           const result = await findImplementations(
             clangdManager.getClient(),
             fileTracker,
             args.file_path as string,
             (args.line as number) - 1,
-            (args.column as number) - 1
+            (args.column as number) - 1,
+            {
+              getBackgroundIndexStatus: () => clangdManager!.getBackgroundIndexStatus()
+            }
           );
           return {
             content: [{ type: 'text', text: result }]
@@ -471,7 +482,10 @@ async function main() {
             fileTracker,
             args.file_path as string,
             (args.line as number) - 1,
-            (args.column as number) - 1
+            (args.column as number) - 1,
+            {
+              getBackgroundIndexStatus: () => clangdManager!.getBackgroundIndexStatus()
+            }
           );
           return {
             content: [{ type: 'text', text: result }]
@@ -484,7 +498,10 @@ async function main() {
             fileTracker,
             args.file_path as string,
             (args.line as number) - 1,
-            (args.column as number) - 1
+            (args.column as number) - 1,
+            {
+              getBackgroundIndexStatus: () => clangdManager!.getBackgroundIndexStatus()
+            }
           );
           return {
             content: [{ type: 'text', text: result }]
@@ -543,6 +560,12 @@ async function main() {
   await server.connect(transport);
 
   logger.info('Clangd MCP server running on stdio');
+
+  // Eagerly start clangd so background indexing begins immediately,
+  // rather than waiting for the first tool call.
+  ensureClangdInitialized().catch((error) => {
+    logger.error('Eager clangd initialization failed (will retry on first tool call):', error);
+  });
 }
 
 // Run the server

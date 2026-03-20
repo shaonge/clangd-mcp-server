@@ -134,7 +134,27 @@ export class LSPClient {
   }
 
   private handleMessage(message: JsonRpcMessage): void {
-    if ('id' in message && ('result' in message || 'error' in message)) {
+    if ('id' in message && 'method' in message && !('result' in message) && !('error' in message)) {
+      const serverRequest = message as any;
+      if (serverRequest.method === 'window/workDoneProgress/create') {
+        logger.info('Received server request:', serverRequest.method, 'id:', serverRequest.id);
+        this.sendMessage({
+          jsonrpc: '2.0',
+          id: serverRequest.id,
+          result: null
+        } as any);
+      } else {
+        logger.warn('Unsupported server request:', serverRequest.method, 'id:', serverRequest.id);
+        this.sendMessage({
+          jsonrpc: '2.0',
+          id: serverRequest.id,
+          error: {
+            code: -32601,
+            message: `Unsupported server request: ${serverRequest.method}`
+          }
+        } as any);
+      }
+    } else if ('id' in message && ('result' in message || 'error' in message)) {
       // Response
       this.handleResponse(message as JsonRpcResponse);
     } else if ('method' in message && !('id' in message)) {
@@ -166,7 +186,7 @@ export class LSPClient {
   }
 
   private handleNotification(notification: JsonRpcNotification): void {
-    logger.debug('Received notification:', notification.method);
+    logger.info('Received notification:', notification.method);
 
     const handler = this.notificationHandlers.get(notification.method);
     if (handler) {
@@ -230,7 +250,14 @@ export class LSPClient {
     const header = `Content-Length: ${contentLength}\r\n\r\n`;
     const fullMessage = header + content;
 
-    logger.debug('Sending LSP message:', message);
+    // Redact textDocument.text to avoid flooding logs
+    const msg = message as any;
+    if (msg.params?.textDocument?.text !== undefined) {
+      const { text, ...rest } = msg.params.textDocument;
+      logger.debug('Sending LSP message:', { ...msg, params: { ...msg.params, textDocument: { ...rest, text: `<${text.length} chars>` } } });
+    } else {
+      logger.debug('Sending LSP message:', message);
+    }
 
     // Handle backpressure: if write returns false, wait for drain
     const canWrite = this.stdin.write(fullMessage);

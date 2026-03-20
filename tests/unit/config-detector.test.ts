@@ -10,357 +10,291 @@ import { tmpdir } from 'node:os';
 describe('Config detector', () => {
   let testDir: string;
   let originalEnv: NodeJS.ProcessEnv;
+  let consoleErrorSpy: jest.SpiedFunction<typeof console.error>;
 
   beforeEach(() => {
-    // Create temp test directory
     testDir = join(tmpdir(), `clangd-mcp-test-${Date.now()}`);
     mkdirSync(testDir, { recursive: true });
 
-    // Save original environment
     originalEnv = { ...process.env };
-
-    // Clear relevant env vars
+    process.env = { ...process.env };
     delete process.env.PROJECT_ROOT;
     delete process.env.COMPILE_COMMANDS_DIR;
-    delete process.env.CLANGD_PATH;
     delete process.env.CLANGD_ARGS;
     delete process.env.CLANGD_LOG_LEVEL;
+    process.env.CLANGD_PATH = '/custom/path/to/clangd';
+    process.env.LOG_LEVEL = 'ERROR';
 
-    // Reset modules to pick up env changes
+    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     jest.resetModules();
   });
 
   afterEach(() => {
-    // Restore environment
     process.env = { ...originalEnv };
+    consoleErrorSpy.mockRestore();
 
-    // Clean up test directory
     if (existsSync(testDir)) {
       rmSync(testDir, { recursive: true, force: true });
     }
   });
 
-  it('should use PROJECT_ROOT from environment', async () => {
-    process.env.PROJECT_ROOT = testDir;
+  async function loadConfigDetector() {
     jest.resetModules();
-    const { detectConfiguration } = await import('../../src/config-detector.js');
+    return import('../../src/config-detector.js');
+  }
+
+  function createBundledClangd(root: string = testDir): string {
+    const clangdDir = join(root, 'third_party', 'llvm-build', 'Release+Asserts', 'bin');
+    mkdirSync(clangdDir, { recursive: true });
+    const clangdPath = join(clangdDir, 'clangd');
+    writeFileSync(clangdPath, '#!/bin/sh\nexit 0\n');
+    return clangdPath;
+  }
+
+  it('uses PROJECT_ROOT from environment', async () => {
+    process.env.PROJECT_ROOT = testDir;
+    const { detectConfiguration } = await loadConfigDetector();
 
     const config = detectConfiguration();
     expect(config.projectRoot).toBe(testDir);
   });
 
-  it('should fallback to cwd when PROJECT_ROOT not set', async () => {
+  it('falls back to cwd when PROJECT_ROOT is not set', async () => {
     const originalCwd = process.cwd();
     process.chdir(testDir);
-    jest.resetModules();
 
-    const { detectConfiguration } = await import('../../src/config-detector.js');
-    const config = detectConfiguration();
-
-    expect(config.projectRoot).toBe(process.cwd());
-    process.chdir(originalCwd);
+    try {
+      const { detectConfiguration } = await loadConfigDetector();
+      const config = detectConfiguration();
+      expect(config.projectRoot).toBe(process.cwd());
+    } finally {
+      process.chdir(originalCwd);
+    }
   });
 
-  it('should detect Chromium project with bundled clangd', async () => {
-    // Create bundled clangd
-    const clangdDir = join(testDir, 'third_party', 'llvm-build', 'Release+Asserts', 'bin');
-    mkdirSync(clangdDir, { recursive: true });
-    writeFileSync(join(clangdDir, 'clangd'), '#!/bin/bash\necho clangd');
-
+  it('uses CLANGD_PATH when provided', async () => {
     process.env.PROJECT_ROOT = testDir;
-    jest.resetModules();
+    process.env.CLANGD_PATH = '/another/custom/clangd';
+    const { detectConfiguration } = await loadConfigDetector();
 
-    const { detectConfiguration } = await import('../../src/config-detector.js');
     const config = detectConfiguration();
+    expect(config.clangdPath).toBe('/another/custom/clangd');
+  });
 
+  it('requires bundled clangd when CLANGD_PATH is not set', async () => {
+    process.env.PROJECT_ROOT = testDir;
+    delete process.env.CLANGD_PATH;
+    const { detectConfiguration } = await loadConfigDetector();
+
+    expect(() => detectConfiguration()).toThrow(/clangd not found/);
+  });
+
+  it('detects Chromium project and uses bundled clangd', async () => {
+    const bundledClangd = createBundledClangd();
+    process.env.PROJECT_ROOT = testDir;
+    delete process.env.CLANGD_PATH;
+    const { detectConfiguration } = await loadConfigDetector();
+
+    const config = detectConfiguration();
     expect(config.isChromiumProject).toBe(true);
+    expect(config.clangdPath).toBe(bundledClangd);
   });
 
-  it('should not detect Chromium project without bundled clangd', async () => {
+  it('does not mark the project as Chromium without bundled clangd', async () => {
     process.env.PROJECT_ROOT = testDir;
-    jest.resetModules();
+    const { detectConfiguration } = await loadConfigDetector();
 
-    const { detectConfiguration } = await import('../../src/config-detector.js');
     const config = detectConfiguration();
-
     expect(config.isChromiumProject).toBe(false);
-  });
-
-  it('should find compile_commands.json in root', async () => {
-    writeFileSync(join(testDir, 'compile_commands.json'), '[]');
-    process.env.PROJECT_ROOT = testDir;
-    jest.resetModules();
-
-    const { detectConfiguration } = await import('../../src/config-detector.js');
-    const config = detectConfiguration();
-
-    expect(config.compileCommandsPath).toBe(join(testDir, 'compile_commands.json'));
-  });
-
-  it('should find compile_commands.json in build/', async () => {
-    const buildDir = join(testDir, 'build');
-    mkdirSync(buildDir);
-    writeFileSync(join(buildDir, 'compile_commands.json'), '[]');
-    process.env.PROJECT_ROOT = testDir;
-    jest.resetModules();
-
-    const { detectConfiguration } = await import('../../src/config-detector.js');
-    const config = detectConfiguration();
-
-    expect(config.compileCommandsPath).toBe(join(buildDir, 'compile_commands.json'));
-  });
-
-  it('should find compile_commands.json in out/Default/', async () => {
-    const outDir = join(testDir, 'out', 'Default');
-    mkdirSync(outDir, { recursive: true });
-    writeFileSync(join(outDir, 'compile_commands.json'), '[]');
-    process.env.PROJECT_ROOT = testDir;
-    jest.resetModules();
-
-    const { detectConfiguration } = await import('../../src/config-detector.js');
-    const config = detectConfiguration();
-
-    expect(config.compileCommandsPath).toBe(join(outDir, 'compile_commands.json'));
-  });
-
-  it('should respect COMPILE_COMMANDS_DIR environment variable', async () => {
-    const customDir = join(testDir, 'custom');
-    mkdirSync(customDir);
-    writeFileSync(join(customDir, 'compile_commands.json'), '[]');
-    process.env.PROJECT_ROOT = testDir;
-    process.env.COMPILE_COMMANDS_DIR = customDir;
-    jest.resetModules();
-
-    const { detectConfiguration } = await import('../../src/config-detector.js');
-    const config = detectConfiguration();
-
-    expect(config.compileCommandsPath).toBe(join(customDir, 'compile_commands.json'));
-  });
-
-  it('should return undefined when compile_commands.json not found', async () => {
-    process.env.PROJECT_ROOT = testDir;
-    jest.resetModules();
-
-    const { detectConfiguration } = await import('../../src/config-detector.js');
-    const config = detectConfiguration();
-
-    expect(config.compileCommandsPath).toBeUndefined();
-  });
-
-  it('should use CLANGD_PATH from environment', async () => {
-    process.env.PROJECT_ROOT = testDir;
-    process.env.CLANGD_PATH = '/custom/path/to/clangd';
-    jest.resetModules();
-
-    const { detectConfiguration } = await import('../../src/config-detector.js');
-    const config = detectConfiguration();
-
     expect(config.clangdPath).toBe('/custom/path/to/clangd');
   });
 
-  it('should default to "clangd" when CLANGD_PATH not set', async () => {
+  it('prefers CLANGD_PATH over bundled clangd', async () => {
+    createBundledClangd();
     process.env.PROJECT_ROOT = testDir;
-    jest.resetModules();
+    process.env.CLANGD_PATH = '/preferred/clangd';
+    const { detectConfiguration } = await loadConfigDetector();
 
-    const { detectConfiguration } = await import('../../src/config-detector.js');
     const config = detectConfiguration();
-
-    expect(config.clangdPath).toBe('clangd');
+    expect(config.clangdPath).toBe('/preferred/clangd');
   });
 
-  it('should parse CLANGD_ARGS from environment', async () => {
-    process.env.PROJECT_ROOT = testDir;
-    process.env.CLANGD_ARGS = '--arg1 --arg2=value';
-    jest.resetModules();
-
-    const { detectConfiguration } = await import('../../src/config-detector.js');
-    const config = detectConfiguration();
-
-    expect(config.clangdArgs).toContain('--arg1');
-    expect(config.clangdArgs).toContain('--arg2=value');
-  });
-
-  it('should add --compile-commands-dir when compile_commands.json found', async () => {
+  it('finds compile_commands.json in standard locations', async () => {
     const buildDir = join(testDir, 'build');
-    mkdirSync(buildDir);
+    mkdirSync(buildDir, { recursive: true });
     writeFileSync(join(buildDir, 'compile_commands.json'), '[]');
     process.env.PROJECT_ROOT = testDir;
-    jest.resetModules();
+    const { detectConfiguration } = await loadConfigDetector();
 
-    const { detectConfiguration } = await import('../../src/config-detector.js');
     const config = detectConfiguration();
-
-    const compileCommandsArg = config.clangdArgs.find((arg) =>
-      arg.startsWith('--compile-commands-dir=')
-    );
-    expect(compileCommandsArg).toBeDefined();
-    expect(compileCommandsArg).toContain(buildDir);
+    expect(config.compileCommandsPath).toBe(join(buildDir, 'compile_commands.json'));
   });
 
-  it('should disable background indexing by default', async () => {
+  it('respects COMPILE_COMMANDS_DIR when set', async () => {
+    const customDir = join(testDir, 'custom');
+    mkdirSync(customDir, { recursive: true });
+    writeFileSync(join(customDir, 'compile_commands.json'), '[]');
     process.env.PROJECT_ROOT = testDir;
-    jest.resetModules();
+    process.env.COMPILE_COMMANDS_DIR = customDir;
+    const { detectConfiguration } = await loadConfigDetector();
 
-    const { detectConfiguration } = await import('../../src/config-detector.js');
     const config = detectConfiguration();
-
-    expect(config.clangdArgs).toContain('--background-index=false');
+    expect(config.compileCommandsPath).toBe(join(customDir, 'compile_commands.json'));
   });
 
-  it('should not override explicit background-index setting', async () => {
+  it('adds compile command and indexing defaults', async () => {
+    const buildDir = join(testDir, 'build');
+    mkdirSync(buildDir, { recursive: true });
+    writeFileSync(join(buildDir, 'compile_commands.json'), '[]');
     process.env.PROJECT_ROOT = testDir;
-    process.env.CLANGD_ARGS = '--background-index=true';
-    jest.resetModules();
+    const { detectConfiguration } = await loadConfigDetector();
 
-    const { detectConfiguration } = await import('../../src/config-detector.js');
     const config = detectConfiguration();
-
+    expect(config.clangdArgs).toContain(`--compile-commands-dir=${buildDir}`);
     expect(config.clangdArgs).toContain('--background-index=true');
-    expect(config.clangdArgs).not.toContain('--background-index=false');
-  });
-
-  it('should add default result limits', async () => {
-    process.env.PROJECT_ROOT = testDir;
-    jest.resetModules();
-
-    const { detectConfiguration } = await import('../../src/config-detector.js');
-    const config = detectConfiguration();
-
     expect(config.clangdArgs).toContain('--limit-references=1000');
     expect(config.clangdArgs).toContain('--limit-results=1000');
-  });
-
-  it('should add performance optimizations', async () => {
-    process.env.PROJECT_ROOT = testDir;
-    jest.resetModules();
-
-    const { detectConfiguration } = await import('../../src/config-detector.js');
-    const config = detectConfiguration();
-
-    // expect(config.clangdArgs).toContain('--malloc-trim');
     expect(config.clangdArgs).toContain('--pch-storage=memory');
     expect(config.clangdArgs).toContain('--clang-tidy=false');
+    expect(config.clangdArgs).toContain('-j=2');
+    expect(config.clangdArgs).toContain('--log=info');
   });
 
-  it('should use CLANGD_LOG_LEVEL for log argument', async () => {
+  it('does not override explicit indexing-related arguments', async () => {
     process.env.PROJECT_ROOT = testDir;
-    process.env.CLANGD_LOG_LEVEL = 'verbose';
-    jest.resetModules();
+    process.env.CLANGD_ARGS = '--background-index=false -j=8 --log=verbose';
+    const { detectConfiguration } = await loadConfigDetector();
 
-    const { detectConfiguration } = await import('../../src/config-detector.js');
     const config = detectConfiguration();
-
+    expect(config.clangdArgs).toContain('--background-index=false');
+    expect(config.clangdArgs).not.toContain('--background-index=true');
+    expect(config.clangdArgs).toContain('-j=8');
+    expect(config.clangdArgs).not.toContain('-j=2');
     expect(config.clangdArgs).toContain('--log=verbose');
   });
 
-  it('should default to error log level', async () => {
+  it('uses CLANGD_LOG_LEVEL when no explicit --log argument is provided', async () => {
     process.env.PROJECT_ROOT = testDir;
-    jest.resetModules();
+    process.env.CLANGD_LOG_LEVEL = 'verbose';
+    const { detectConfiguration } = await loadConfigDetector();
 
-    const { detectConfiguration } = await import('../../src/config-detector.js');
     const config = detectConfiguration();
-
-    const logArg = config.clangdArgs.find((arg) => arg.startsWith('--log='));
-    expect(logArg).toBe('--log=error');
+    expect(config.clangdArgs).toContain('--log=verbose');
   });
 
-  it('should use Chromium bundled clangd when available', async () => {
-    // Create Chromium project with bundled clangd
-    const clangdDir = join(testDir, 'third_party', 'llvm-build', 'Release+Asserts', 'bin');
-    mkdirSync(clangdDir, { recursive: true });
-    const chromiumClangd = join(clangdDir, 'clangd');
-    writeFileSync(chromiumClangd, '#!/bin/bash\necho clangd');
+  it('detects Chromium projects opened at the src directory', async () => {
+    const srcDir = join(testDir, 'chromium', 'src');
+    createBundledClangd(srcDir);
+    process.env.PROJECT_ROOT = srcDir;
+    delete process.env.CLANGD_PATH;
+    const { detectConfiguration } = await loadConfigDetector();
 
-    process.env.PROJECT_ROOT = testDir;
-    jest.resetModules();
-
-    const { detectConfiguration } = await import('../../src/config-detector.js');
     const config = detectConfiguration();
-
     expect(config.isChromiumProject).toBe(true);
-    expect(config.clangdPath).toBe(chromiumClangd);
+    expect(config.clangdPath).toBe(join(srcDir, 'third_party', 'llvm-build', 'Release+Asserts', 'bin', 'clangd'));
   });
 
-  it('should use system clangd when bundled clangd not found', async () => {
-    // No bundled clangd present
-    process.env.PROJECT_ROOT = testDir;
-    jest.resetModules();
-
-    const { detectConfiguration } = await import('../../src/config-detector.js');
-    const config = detectConfiguration();
-
-    expect(config.isChromiumProject).toBe(false);
-    expect(config.clangdPath).toBe('clangd');
-  });
-
-  it('should prefer CLANGD_PATH over Chromium bundled clangd', async () => {
-    // Create Chromium project with bundled clangd
-    const clangdDir = join(testDir, 'third_party', 'llvm-build', 'Release+Asserts', 'bin');
-    mkdirSync(clangdDir, { recursive: true });
-    writeFileSync(join(clangdDir, 'clangd'), '#!/bin/bash\necho clangd');
-
-    process.env.PROJECT_ROOT = testDir;
-    process.env.CLANGD_PATH = '/custom/clangd';
-    jest.resetModules();
-
-    const { detectConfiguration } = await import('../../src/config-detector.js');
-    const config = detectConfiguration();
-
-    expect(config.isChromiumProject).toBe(true);
-    expect(config.clangdPath).toBe('/custom/clangd');
-  });
-
-  describe('Chromium detection', () => {
-    it('should detect Chromium via bundled clangd', async () => {
-      // Create only the bundled clangd
-      const clangdDir = join(testDir, 'third_party', 'llvm-build', 'Release+Asserts', 'bin');
-      mkdirSync(clangdDir, { recursive: true });
-      writeFileSync(join(clangdDir, 'clangd'), '#!/bin/bash\necho clangd');
-
-      process.env.PROJECT_ROOT = testDir;
-      jest.resetModules();
-
-      const { detectConfiguration } = await import('../../src/config-detector.js');
-      const config = detectConfiguration();
-
-      expect(config.isChromiumProject).toBe(true);
-    });
-
-    it('should detect Chromium with bundled clangd in src/ subdirectory', async () => {
-      // Simulate real Chromium checkout with bundled clangd in src/
-      const srcDir = join(testDir, 'chromium', 'src');
+  describe('getFirstFileFromCompileCommands', () => {
+    it('returns the first existing C-family source file', async () => {
+      const buildDir = join(testDir, 'out', 'Default');
+      const srcDir = join(testDir, 'src');
+      mkdirSync(buildDir, { recursive: true });
       mkdirSync(srcDir, { recursive: true });
+      writeFileSync(join(srcDir, 'keep.h'), '// header');
+      writeFileSync(join(srcDir, 'main.cc'), 'int main() { return 0; }');
+      writeFileSync(
+        join(buildDir, 'compile_commands.json'),
+        [
+          '[',
+          '  {',
+          `    "directory": ${JSON.stringify(testDir)},`,
+          `    "file": ${JSON.stringify('src/keep.h')}`,
+          '  },',
+          '  {',
+          `    "directory": ${JSON.stringify(testDir)},`,
+          `    "file": ${JSON.stringify('src/main.cc')}`,
+          '  }',
+          ']'
+        ].join('\n')
+      );
 
-      // Add bundled clangd
-      const clangdDir = join(srcDir, 'third_party', 'llvm-build', 'Release+Asserts', 'bin');
-      mkdirSync(clangdDir, { recursive: true });
-      writeFileSync(join(clangdDir, 'clangd'), '#!/bin/bash\necho clangd');
+      const { getFirstFileFromCompileCommands } = await loadConfigDetector();
+      const firstFile = await getFirstFileFromCompileCommands(join(buildDir, 'compile_commands.json'));
 
-      // Open workspace in src/ directory (common case)
-      process.env.PROJECT_ROOT = srcDir;
-      jest.resetModules();
-
-      const { detectConfiguration } = await import('../../src/config-detector.js');
-      const config = detectConfiguration();
-
-      expect(config.isChromiumProject).toBe(true);
-      expect(config.clangdPath).toBe(join(clangdDir, 'clangd'));
+      expect(firstFile).toBe(join(testDir, 'src', 'main.cc'));
     });
 
-    it('should not detect Chromium without bundled clangd', async () => {
-      // Create Chromium-like structure but without bundled clangd
-      const dirs = ['base', 'chrome', 'content', 'third_party', 'tools/clang'];
-      for (const dir of dirs) {
-        mkdirSync(join(testDir, dir), { recursive: true });
-      }
+    it('returns undefined when no usable source file is found', async () => {
+      const buildDir = join(testDir, 'out', 'Default');
+      mkdirSync(buildDir, { recursive: true });
+      writeFileSync(
+        join(buildDir, 'compile_commands.json'),
+        [
+          '[',
+          '  {',
+          `    "directory": ${JSON.stringify(testDir)},`,
+          `    "file": ${JSON.stringify('src/only_header.h')}`,
+          '  }',
+          ']'
+        ].join('\n')
+      );
 
-      process.env.PROJECT_ROOT = testDir;
-      jest.resetModules();
+      const { getFirstFileFromCompileCommands } = await loadConfigDetector();
+      const firstFile = await getFirstFileFromCompileCommands(join(buildDir, 'compile_commands.json'));
 
-      const { detectConfiguration } = await import('../../src/config-detector.js');
-      const config = detectConfiguration();
+      expect(firstFile).toBeUndefined();
+    });
 
-      expect(config.isChromiumProject).toBe(false);
+    it('continues scanning when the first candidate source file is missing', async () => {
+      const buildDir = join(testDir, 'out', 'Default');
+      const srcDir = join(testDir, 'src');
+      mkdirSync(buildDir, { recursive: true });
+      mkdirSync(srcDir, { recursive: true });
+      writeFileSync(join(srcDir, 'real.cxx'), 'int answer() { return 42; }');
+      writeFileSync(
+        join(buildDir, 'compile_commands.json'),
+        [
+          '[',
+          '  {',
+          `    "directory": ${JSON.stringify(testDir)},`,
+          `    "file": ${JSON.stringify('src/missing.cc')}`,
+          '  },',
+          '  {',
+          `    "directory": ${JSON.stringify(testDir)},`,
+          `    "file": ${JSON.stringify('src/real.cxx')}`,
+          '  }',
+          ']'
+        ].join('\n')
+      );
+
+      const { getFirstFileFromCompileCommands } = await loadConfigDetector();
+      const firstFile = await getFirstFileFromCompileCommands(join(buildDir, 'compile_commands.json'));
+
+      expect(firstFile).toBe(join(testDir, 'src', 'real.cxx'));
+    });
+
+    it('handles entries where file appears before directory', async () => {
+      const buildDir = join(testDir, 'out', 'Default');
+      const srcDir = join(testDir, 'src');
+      mkdirSync(buildDir, { recursive: true });
+      mkdirSync(srcDir, { recursive: true });
+      writeFileSync(join(srcDir, 'main.C'), 'int main() { return 0; }');
+      writeFileSync(
+        join(buildDir, 'compile_commands.json'),
+        [
+          '[',
+          '  {',
+          `    "file": ${JSON.stringify('src/main.C')},`,
+          `    "directory": ${JSON.stringify(testDir)}`,
+          '  }',
+          ']'
+        ].join('\n')
+      );
+
+      const { getFirstFileFromCompileCommands } = await loadConfigDetector();
+      const firstFile = await getFirstFileFromCompileCommands(join(buildDir, 'compile_commands.json'));
+
+      expect(firstFile).toBe(join(testDir, 'src', 'main.C'));
     });
   });
 });

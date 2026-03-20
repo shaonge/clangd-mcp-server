@@ -16,7 +16,7 @@ class Logger {
     const envLevel = process.env.LOG_LEVEL?.toUpperCase();
     this.level = (envLevel && envLevel in LogLevel)
       ? LogLevel[envLevel as keyof typeof LogLevel]
-      : LogLevel.INFO;
+      : LogLevel.DEBUG;
   }
 
   private shouldLog(level: LogLevel): boolean {

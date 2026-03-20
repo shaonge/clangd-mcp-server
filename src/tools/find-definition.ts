@@ -33,7 +33,7 @@ export async function findDefinition(
     return JSON.stringify({
       found: false,
       message: 'No definition found'
-    });
+    }, null, 2);
   }
 
   const formattedLocations = locations.map(loc => ({

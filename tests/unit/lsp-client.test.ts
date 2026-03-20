@@ -252,6 +252,47 @@ describe('LSPClient', () => {
     });
   });
 
+  describe('server requests', () => {
+    it('auto-responds to server-to-client requests', async () => {
+      sendLSPMessage(stdout, {
+        jsonrpc: '2.0',
+        id: 99,
+        method: 'window/workDoneProgress/create',
+        params: { token: 'index-token' },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      const messages = parseLSPMessages(stdin.getWrittenData());
+      expect(messages).toContainEqual({
+        jsonrpc: '2.0',
+        id: 99,
+        result: null,
+      });
+    });
+
+    it('rejects unsupported server-to-client requests explicitly', async () => {
+      sendLSPMessage(stdout, {
+        jsonrpc: '2.0',
+        id: 100,
+        method: 'workspace/configuration',
+        params: {},
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      const messages = parseLSPMessages(stdin.getWrittenData());
+      expect(messages).toContainEqual({
+        jsonrpc: '2.0',
+        id: 100,
+        error: {
+          code: -32601,
+          message: 'Unsupported server request: workspace/configuration',
+        },
+      });
+    });
+  });
+
   describe('stream lifecycle', () => {
     it('should reject pending requests on stream end', async () => {
       const promise1 = client.request('method1');

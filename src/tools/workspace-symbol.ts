@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import { LSPClient } from '../lsp-client.js';
+import type { BackgroundIndexStatus } from '../clangd-manager.js';
 import { uriToPath } from '../utils/uri.js';
 import { withRetry } from '../utils/errors.js';
 import { symbolKindNames } from '../utils/lsp-types.js';
@@ -20,11 +21,18 @@ interface SymbolInformation {
   containerName?: string;
 }
 
+interface WorkspaceSymbolSearchOptions {
+  getBackgroundIndexStatus?: () => BackgroundIndexStatus;
+}
+
 export async function workspaceSymbolSearch(
   lspClient: LSPClient,
   query: string,
-  limit: number = 100
+  limit: number = 100,
+  options: WorkspaceSymbolSearchOptions = {}
 ): Promise<string> {
+  const indexStatus = options.getBackgroundIndexStatus?.();
+
   // Make LSP request with retry
   const symbols: SymbolInformation[] = await withRetry(async () => {
     const result = await lspClient.request('workspace/symbol', {
@@ -38,8 +46,12 @@ export async function workspaceSymbolSearch(
   if (symbols.length === 0) {
     return JSON.stringify({
       found: false,
-      message: `No symbols found matching '${query}'`
-    });
+      message: `No symbols found matching '${query}'`,
+      ...(indexStatus ? {
+        index_status: indexStatus,
+        note: getBackgroundIndexNote(indexStatus)
+      } : {})
+    }, null, 2);
   }
 
   // Apply limit
@@ -60,6 +72,23 @@ export async function workspaceSymbolSearch(
     count: symbols.length,
     returned: formattedSymbols.length,
     truncated: symbols.length > limit,
-    symbols: formattedSymbols
+    symbols: formattedSymbols,
+    ...(indexStatus ? {
+      index_status: indexStatus,
+      note: getBackgroundIndexNote(indexStatus)
+    } : {})
   }, null, 2);
+}
+
+function getBackgroundIndexNote(status: BackgroundIndexStatus): string | undefined {
+  switch (status.state) {
+    case 'disabled':
+      return 'Background indexing is disabled. Results may be limited to clangd\'s dynamic index.';
+    case 'indexing':
+      return 'Background indexing is in progress. Results may be incomplete until indexing settles.';
+    case 'partial':
+      return 'Background indexing has not reached confirmed full workspace coverage yet. Results may be incomplete.';
+    case 'completed':
+      return undefined;
+  }
 }

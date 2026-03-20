@@ -4,6 +4,7 @@
 
 import { LSPClient } from '../lsp-client.js';
 import { FileTracker } from '../file-tracker.js';
+import { getIndexAwareResponseExtras, type IndexAwareToolOptions } from './index-aware-response.js';
 import { uriToPath } from '../utils/uri.js';
 import { withRetry } from '../utils/errors.js';
 import { TypeHierarchyItem, symbolKindNames } from '../utils/lsp-types.js';
@@ -14,7 +15,8 @@ export async function getTypeHierarchy(
   fileTracker: FileTracker,
   filePath: string,
   line: number,
-  column: number
+  column: number,
+  options: IndexAwareToolOptions = {}
 ): Promise<string> {
   // Ensure file is opened
   const uri = await fileTracker.ensureFileOpen(filePath);
@@ -39,8 +41,12 @@ export async function getTypeHierarchy(
   if (!result) {
     return JSON.stringify({
       found: false,
-      message: 'No type hierarchy available at this position'
-    });
+      message: 'No type hierarchy available at this position',
+      ...getIndexAwareResponseExtras(options, {
+        operation: 'Type hierarchy',
+        resultEmpty: true
+      })
+    }, null, 2);
   }
 
   // Format the main type
@@ -89,6 +95,10 @@ export async function getTypeHierarchy(
     supertypes: supertypes,
     supertypes_count: supertypes.length,
     subtypes: subtypes,
-    subtypes_count: subtypes.length
+    subtypes_count: subtypes.length,
+    ...getIndexAwareResponseExtras(options, {
+      operation: 'Type hierarchy',
+      resultEmpty: false
+    })
   }, null, 2);
 }

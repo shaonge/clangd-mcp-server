@@ -2,9 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-import { existsSync } from 'node:fs';
+import { existsSync, createReadStream } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { createInterface } from 'node:readline';
 import { logger } from './utils/logger.js';
 
 export interface ClangdConfig {
@@ -96,23 +97,21 @@ export function detectConfiguration(): ClangdConfig {
   }
 
   // Find clangd binary
+  // Priority: CLANGD_PATH env > project bundled clangd (required)
   let clangdPath: string;
-  let projectClangd: string | undefined;
   if (process.env.CLANGD_PATH) {
     clangdPath = process.env.CLANGD_PATH;
     logger.info('Using clangd from CLANGD_PATH:', clangdPath);
   } else {
-    projectClangd = findProjectBundledClangd(projectRoot, isChromiumProject);
+    const projectClangd = findProjectBundledClangd(projectRoot, isChromiumProject);
     if (projectClangd) {
       clangdPath = projectClangd;
-      logger.info('Using Chromium bundled clangd:', clangdPath);
-    } else if (isChromiumProject) {
-      clangdPath = 'clangd';
-      logger.warn('Chromium project detected but bundled clangd not found, falling back to system clangd');
-      logger.warn('Consider setting CLANGD_PATH to third_party/llvm-build/Release+Asserts/bin/clangd');
+      logger.info('Using project bundled clangd:', clangdPath);
     } else {
-      clangdPath = 'clangd';
-      logger.info('Using system clangd from PATH');
+      throw new Error(
+        'clangd not found. Expected bundled clangd at third_party/llvm-build/Release+Asserts/bin/clangd ' +
+        `under project root ${projectRoot}. Set CLANGD_PATH environment variable to specify a custom clangd path.`
+      );
     }
   }
 
@@ -125,14 +124,6 @@ export function detectConfiguration(): ClangdConfig {
   const version = getClangdVersion(clangdPath);
   if (version) {
     logger.info(`Clangd version: ${version}`);
-
-    // Warn if using old system clangd for Chromium
-    if (isChromiumProject && !projectClangd && version) {
-      const majorVersion = parseInt(version.split('.')[0]);
-      if (majorVersion < 20) {
-        logger.warn(`Using older system clangd (${version}) for Chromium project. Consider using the bundled clangd (v22+) via CLANGD_PATH`);
-      }
-    }
   } else {
     logger.warn('Could not detect clangd version');
   }
@@ -259,11 +250,12 @@ function generateClangdArgs(isChromiumProject: boolean, compileCommandsPath?: st
     args.push(`--compile-commands-dir=${dirname(compileCommandsPath)}`);
   }
 
-  // Disable background indexing by default for MCP server use case
-  // MCP servers make sporadic queries, not continuous editing, so on-demand
-  // indexing (via didOpen) is more efficient. Users can override via CLANGD_ARGS.
+  // Enable background indexing by default so that workspace/symbol can work.
+  // Without background indexing, workspace/symbol can only search the dynamic
+  // index (opened files), making it nearly useless on cold start.
+  // Users can override via CLANGD_ARGS (e.g. --background-index=false).
   if (!args.some(arg => arg.startsWith('--background-index'))) {
-    args.push('--background-index=false');
+    args.push('--background-index=true');
   }
 
   // For Chromium projects, suggest remote index server
@@ -296,11 +288,90 @@ function generateClangdArgs(isChromiumProject: boolean, compileCommandsPath?: st
     args.push('--clang-tidy=false'); // Disable for performance
   }
 
+  // Limit background index threads to avoid hogging CPU
+  if (!args.some(arg => arg.startsWith('-j') || arg.startsWith('--background-index-threads'))) {
+    args.push('-j=2');
+  }
+
   // Log level
   if (!args.some(arg => arg.startsWith('--log'))) {
-    const logLevel = process.env.CLANGD_LOG_LEVEL || 'error';
+    const logLevel = process.env.CLANGD_LOG_LEVEL || 'info';
     args.push(`--log=${logLevel}`);
   }
 
   return args;
+}
+
+/**
+ * Extract the first source file path from compile_commands.json.
+ * Uses streaming to avoid loading the entire (potentially 100s of MB) file.
+ * This file is used as a "seed" to trigger clangd's lazy compilation database
+ * loading, which in turn starts the background indexer.
+ */
+export async function getFirstFileFromCompileCommands(
+  compileCommandsPath: string
+): Promise<string | undefined> {
+  try {
+    const stream = createReadStream(compileCommandsPath, { encoding: 'utf8' });
+    const rl = createInterface({ input: stream, crlfDelay: Infinity });
+
+    let currentEntryLines: string[] = [];
+    let braceDepth = 0;
+
+    for await (const line of rl) {
+      const openBraces = (line.match(/{/g) || []).length;
+      const closeBraces = (line.match(/}/g) || []).length;
+
+      if (braceDepth > 0 || openBraces > 0) {
+        currentEntryLines.push(line);
+      }
+
+      braceDepth += openBraces - closeBraces;
+      if (currentEntryLines.length === 0 || braceDepth !== 0) {
+        continue;
+      }
+
+      const entryText = currentEntryLines.join('\n');
+      currentEntryLines = [];
+
+      const directory = extractJsonStringField(entryText, 'directory');
+      const file = extractJsonStringField(entryText, 'file');
+      if (!file || !isSupportedCompileCommandSource(file)) {
+        continue;
+      }
+
+      let filePath = file;
+      if (!filePath.startsWith('/') && directory) {
+        filePath = resolve(directory, filePath);
+      }
+
+      if (existsSync(filePath)) {
+        rl.close();
+        stream.destroy();
+        return filePath;
+      }
+
+      logger.warn('Compile command source file does not exist, trying next entry:', filePath);
+    }
+  } catch (error) {
+    logger.warn('Failed to read compile_commands.json for seed file:', error);
+  }
+  return undefined;
+}
+
+function extractJsonStringField(entryText: string, fieldName: string): string | undefined {
+  const match = entryText.match(new RegExp(`"${fieldName}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`, 's'));
+  if (!match) {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(`"${match[1]}"`) as string;
+  } catch {
+    return undefined;
+  }
+}
+
+function isSupportedCompileCommandSource(filePath: string): boolean {
+  return /\.(?:c|cc|cp|cpp|cxx|c\+\+|C|CC|CPP|CXX)$/.test(filePath);
 }
