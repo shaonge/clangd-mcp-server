@@ -27,7 +27,7 @@ class Logger {
   private log(level: LogLevel, message: string, ...args: any[]): void {
     if (this.shouldLog(level)) {
       const timestamp = new Date().toISOString();
-      const prefix = `[${timestamp}] [${level}]`;
+      const prefix = `[${timestamp}] [${level}] [mcp_server_pid ${process.pid}]`;
       console.error(prefix, message, ...args);
     }
   }

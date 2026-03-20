@@ -186,7 +186,9 @@ export class LSPClient {
   }
 
   private handleNotification(notification: JsonRpcNotification): void {
-    logger.info('Received notification:', notification.method);
+    if (notification.method !== '$/progress') {
+      logger.info('Received notification:', notification.method);
+    }
 
     const handler = this.notificationHandlers.get(notification.method);
     if (handler) {

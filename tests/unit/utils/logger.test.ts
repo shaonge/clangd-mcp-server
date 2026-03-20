@@ -89,4 +89,17 @@ describe('Logger utilities', () => {
       obj
     );
   });
+
+  it('should include the mcp_server_pid in the log prefix', async () => {
+    process.env.LOG_LEVEL = 'INFO';
+    jest.resetModules();
+    const { logger } = await import('../../../src/utils/logger.js');
+
+    logger.info('pid check');
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining(`[mcp_server_pid ${process.pid}]`),
+      expect.stringContaining('pid check')
+    );
+  });
 });

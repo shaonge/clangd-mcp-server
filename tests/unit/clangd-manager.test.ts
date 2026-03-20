@@ -172,4 +172,17 @@ describe('ClangdManager', () => {
     expect(managerAny.start).toHaveBeenCalledTimes(1);
     expect(restarted).toHaveBeenCalledTimes(1);
   });
+
+  it('includes clangd_pid in shutdown-related logs', () => {
+    const manager = new ClangdManager(config);
+    const managerAny = manager as any;
+    managerAny.shuttingDown = true;
+
+    managerAny.handleProcessExit(0, null, 4242);
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('INFO'),
+      expect.stringContaining('clangd_pid 4242')
+    );
+  });
 });

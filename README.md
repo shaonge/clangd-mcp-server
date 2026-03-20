@@ -105,13 +105,14 @@ This project uses the clangd MCP server for C++ code intelligence. Use these too
 | `LOG_LEVEL` | MCP log level (ERROR/WARN/INFO/DEBUG) | `INFO` |
 | `CLANGD_LOG_LEVEL` | Clangd log level | `error` |
 
-**Clangd auto-detection order:** `CLANGD_PATH` → project bundled (Chromium: `third_party/llvm-build/.../clangd`) → system PATH
+**Clangd auto-detection order:** `CLANGD_PATH` → project bundled (Chromium: `third_party/llvm-build/.../clangd`)
 
 Some large projects bundle their own clangd.
 
 **Chromium** is auto-detected at `third_party/llvm-build/Release+Asserts/bin/clangd`. 
 
 For other projects in a similar situation, set `CLANGD_PATH` to specify the bundled clangd.
+If neither `CLANGD_PATH` nor a supported project-bundled clangd is available, the server fails to start.
 
 For bettern performance, background indexing is disabled by default. Usually there is already an axisting `clangd` server taking care of indexing the codebase. You can enable it with:
 

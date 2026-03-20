@@ -10,6 +10,7 @@ import { ChildProcess } from 'node:child_process';
  * Mock child process for testing clangd manager
  */
 export class MockChildProcess extends EventEmitter {
+  public pid: number;
   public stdin: Writable;
   public stdout: Readable;
   public stderr: Readable;
@@ -18,6 +19,7 @@ export class MockChildProcess extends EventEmitter {
 
   constructor(stdin?: Writable, stdout?: Readable, stderr?: Readable) {
     super();
+    this.pid = 4242;
     this.stdin = stdin || new Writable({ write: (chunk, enc, cb) => cb() });
     this.stdout = stdout || new Readable({ read: () => {} });
     this.stderr = stderr || new Readable({ read: () => {} });

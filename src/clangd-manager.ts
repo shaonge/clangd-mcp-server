@@ -70,6 +70,10 @@ export class ClangdManager {
     this.config = config;
   }
 
+  private getProcessPid(process: ChildProcess | undefined = this.process): number | 'unknown' {
+    return process?.pid ?? 'unknown';
+  }
+
   /**
    * Start clangd and initialize the LSP connection
    */
@@ -115,6 +119,8 @@ export class ClangdManager {
       cwd: this.config.projectRoot
     });
 
+    logger.info(`Spawned clangd process (clangd_pid ${this.getProcessPid()})`);
+
     if (!this.process.stdin || !this.process.stdout || !this.process.stderr) {
       throw new ClangdError('Failed to create clangd stdio streams');
     }
@@ -124,19 +130,20 @@ export class ClangdManager {
 
     // Handle process events
     this.process.on('error', (error) => {
-      logger.error('Clangd process error:', error);
+      logger.error(`Clangd process error (clangd_pid ${this.getProcessPid()}):`, error);
     });
 
     this.process.on('exit', (code, signal) => {
-      logger.warn(`Clangd process exited with code ${code}, signal ${signal}`);
-      this.handleProcessExit(code, signal);
+      const pid = this.getProcessPid(this.process);
+      logger.warn(`Clangd process exited (clangd_pid ${pid}) with code ${code}, signal ${signal}`);
+      this.handleProcessExit(code, signal, pid);
     });
 
     // Log stderr output
     this.process.stderr.on('data', (data: Buffer) => {
       const message = data.toString().trim();
       if (message) {
-        logger.info('Clangd stderr:', message);
+        logger.info(`Clangd stderr (clangd_pid ${this.getProcessPid()}):`, message);
       }
     });
 
@@ -221,13 +228,13 @@ export class ClangdManager {
   /**
    * Handle clangd process exit
    */
-  private handleProcessExit(code: number | null, signal: string | null): void {
+  private handleProcessExit(code: number | null, signal: string | null, pid: number | 'unknown' = this.getProcessPid()): void {
     if (this.shuttingDown) {
-      logger.info('Clangd shut down gracefully');
+      logger.info(`Clangd shut down gracefully (clangd_pid ${pid})`);
       return;
     }
 
-    logger.error('Clangd crashed unexpectedly');
+    logger.error(`Clangd crashed unexpectedly (clangd_pid ${pid})`);
 
     // Clean up current state
     this.process = undefined;
@@ -252,7 +259,7 @@ export class ClangdManager {
     if (this.restartCount < this.maxRestarts) {
       this.restartCount++;
       this.isRestarting = true;
-      logger.warn(`Attempting to restart clangd (attempt ${this.restartCount}/${this.maxRestarts})`);
+      logger.warn(`Attempting to restart clangd after clangd_pid ${pid} exited (attempt ${this.restartCount}/${this.maxRestarts})`);
 
       setTimeout(() => {
         this.start()
@@ -282,7 +289,7 @@ export class ClangdManager {
     }
 
     this.shuttingDown = true;
-    logger.info('Shutting down clangd');
+    logger.info(`Shutting down clangd (clangd_pid ${this.getProcessPid()})`);
 
     try {
       if (this.lspClient && this.initialized) {
@@ -311,13 +318,13 @@ export class ClangdManager {
     }
 
     if (this.process && this.process.exitCode === null) {
-      logger.info('Killing clangd process');
+      logger.info(`Killing clangd process (clangd_pid ${this.getProcessPid()})`);
       this.process.kill('SIGTERM');
 
       // Force kill after timeout
       await new Promise(resolve => setTimeout(resolve, 2000));
       if (this.process && this.process.exitCode === null) {
-        logger.warn('Force killing clangd process');
+        logger.warn(`Force killing clangd process (clangd_pid ${this.getProcessPid()})`);
         this.process.kill('SIGKILL');
       }
     }
