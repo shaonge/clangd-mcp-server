@@ -1,6 +1,6 @@
 {
   "name": "@byted/clangd-mcp-server",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "description": "MCP server that bridges Claude Code with clangd LSP for enhanced C++ code intelligence",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
