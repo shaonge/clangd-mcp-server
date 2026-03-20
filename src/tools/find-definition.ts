@@ -38,8 +38,8 @@ export async function findDefinition(
 
   const formattedLocations = locations.map(loc => ({
     file: uriToPath(loc.uri),
-    line: loc.range.start.line,
-    column: loc.range.start.character,
+    line: loc.range.start.line + 1,
+    column: loc.range.start.character + 1,
     uri: loc.uri
   }));
 

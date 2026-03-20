@@ -59,10 +59,10 @@ function formatSymbol(symbol: DocumentSymbol): any {
   return {
     name: symbol.name,
     kind: symbolKindNames[symbol.kind] || `Unknown(${symbol.kind})`,
-    line: symbol.range.start.line,
-    column: symbol.range.start.character,
-    endLine: symbol.range.end.line,
-    endColumn: symbol.range.end.character,
+    line: symbol.range.start.line + 1,
+    column: symbol.range.start.character + 1,
+    endLine: symbol.range.end.line + 1,
+    endColumn: symbol.range.end.character + 1,
     children: symbol.children?.map(formatSymbol)
   };
 }

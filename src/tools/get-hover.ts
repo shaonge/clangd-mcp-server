@@ -42,10 +42,15 @@ export async function getHover(
 
   const contents = extractHoverContents(result.contents);
 
+  const range = result.range ? {
+    start: { line: result.range.start.line + 1, column: result.range.start.character + 1 },
+    end: { line: result.range.end.line + 1, column: result.range.end.character + 1 }
+  } : undefined;
+
   return JSON.stringify({
     found: true,
     contents,
-    range: result.range
+    range
   }, null, 2);
 }
 

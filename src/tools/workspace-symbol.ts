@@ -49,8 +49,8 @@ export async function workspaceSymbolSearch(
     name: sym.name,
     kind: symbolKindNames[sym.kind] || `Unknown(${sym.kind})`,
     file: uriToPath(sym.location.uri),
-    line: sym.location.range.start.line,
-    column: sym.location.range.start.character,
+    line: sym.location.range.start.line + 1,
+    column: sym.location.range.start.character + 1,
     container: sym.containerName,
     uri: sym.location.uri
   }));

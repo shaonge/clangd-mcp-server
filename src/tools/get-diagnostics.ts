@@ -162,17 +162,17 @@ export async function getDiagnostics(
       severity: severityName,
       message: diag.message,
       location: {
-        line: diag.range.start.line,
-        column: diag.range.start.character
+        line: diag.range.start.line + 1,
+        column: diag.range.start.character + 1
       },
       range: {
         start: {
-          line: diag.range.start.line,
-          column: diag.range.start.character
+          line: diag.range.start.line + 1,
+          column: diag.range.start.character + 1
         },
         end: {
-          line: diag.range.end.line,
-          column: diag.range.end.character
+          line: diag.range.end.line + 1,
+          column: diag.range.end.character + 1
         }
       }
     };
@@ -189,8 +189,8 @@ export async function getDiagnostics(
       formatted.relatedInformation = diag.relatedInformation.map(info => ({
         location: {
           file: uriToPath(info.location.uri),
-          line: info.location.range.start.line,
-          column: info.location.range.start.character
+          line: info.location.range.start.line + 1,
+          column: info.location.range.start.character + 1
         },
         message: info.message
       }));

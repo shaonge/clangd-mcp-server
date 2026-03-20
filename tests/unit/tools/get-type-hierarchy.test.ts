@@ -121,8 +121,8 @@ describe('get-type-hierarchy', () => {
       expect(firstSupertype.name).toBe('BaseClass');
       expect(firstSupertype.kind).toBe('Class');
       expect(firstSupertype.location.file).toBe('/path/to/base.cpp');
-      expect(firstSupertype.location.line).toBe(5);
-      expect(firstSupertype.location.column).toBe(6);
+      expect(firstSupertype.location.line).toBe(6);
+      expect(firstSupertype.location.column).toBe(7);
 
       const secondSupertype = parsed.supertypes[1];
       expect(secondSupertype.name).toBe('Interface');
@@ -161,8 +161,8 @@ describe('get-type-hierarchy', () => {
       expect(firstSubtype.name).toBe('ConcreteClass');
       expect(firstSubtype.kind).toBe('Class');
       expect(firstSubtype.location.file).toBe('/path/to/concrete.cpp');
-      expect(firstSubtype.location.line).toBe(20);
-      expect(firstSubtype.location.column).toBe(6);
+      expect(firstSubtype.location.line).toBe(21);
+      expect(firstSubtype.location.column).toBe(7);
     });
 
     it('should handle no hierarchy available', async () => {
@@ -248,8 +248,8 @@ describe('get-type-hierarchy', () => {
       const parsed = JSON.parse(result);
 
       expect(parsed.type.location.file).toBe('/path/to/derived.cpp');
-      expect(parsed.type.location.line).toBe(10);
-      expect(parsed.type.location.column).toBe(6);
+      expect(parsed.type.location.line).toBe(11);
+      expect(parsed.type.location.column).toBe(7);
     });
 
     it('should handle class with only base classes (no subtypes)', async () => {

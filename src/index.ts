@@ -54,11 +54,11 @@ function validateToolArgs(name: string, args: any): void {
       if (typeof args.file_path !== 'string') {
         throw new Error('Invalid file_path: must be a string');
       }
-      if (typeof args.line !== 'number' || !Number.isInteger(args.line) || args.line < 0) {
-        throw new Error('Invalid line: must be a non-negative integer');
+      if (typeof args.line !== 'number' || !Number.isInteger(args.line) || args.line < 1) {
+        throw new Error('Invalid line: must be a positive integer (1-based)');
       }
-      if (typeof args.column !== 'number' || !Number.isInteger(args.column) || args.column < 0) {
-        throw new Error('Invalid column: must be a non-negative integer');
+      if (typeof args.column !== 'number' || !Number.isInteger(args.column) || args.column < 1) {
+        throw new Error('Invalid column: must be a positive integer (1-based)');
       }
       if (name === 'find_references' && args.include_declaration !== undefined && typeof args.include_declaration !== 'boolean') {
         throw new Error('Invalid include_declaration: must be a boolean');
@@ -94,11 +94,11 @@ function validateToolArgs(name: string, args: any): void {
       if (typeof args.file_path !== 'string') {
         throw new Error('Invalid file_path: must be a string');
       }
-      if (typeof args.line !== 'number' || !Number.isInteger(args.line) || args.line < 0) {
-        throw new Error('Invalid line: must be a non-negative integer');
+      if (typeof args.line !== 'number' || !Number.isInteger(args.line) || args.line < 1) {
+        throw new Error('Invalid line: must be a positive integer (1-based)');
       }
-      if (typeof args.column !== 'number' || !Number.isInteger(args.column) || args.column < 0) {
-        throw new Error('Invalid column: must be a non-negative integer');
+      if (typeof args.column !== 'number' || !Number.isInteger(args.column) || args.column < 1) {
+        throw new Error('Invalid column: must be a positive integer (1-based)');
       }
       break;
 
@@ -193,11 +193,11 @@ async function main() {
               },
               line: {
                 type: 'number',
-                description: 'Line number (0-indexed)'
+                description: 'Line number (1-based, as shown in editors)'
               },
               column: {
                 type: 'number',
-                description: 'Column number (0-indexed)'
+                description: 'Column number (1-based, as shown in editors)'
               }
             },
             required: ['file_path', 'line', 'column']
@@ -215,11 +215,11 @@ async function main() {
               },
               line: {
                 type: 'number',
-                description: 'Line number (0-indexed)'
+                description: 'Line number (1-based, as shown in editors)'
               },
               column: {
                 type: 'number',
-                description: 'Column number (0-indexed)'
+                description: 'Column number (1-based, as shown in editors)'
               },
               include_declaration: {
                 type: 'boolean',
@@ -242,11 +242,11 @@ async function main() {
               },
               line: {
                 type: 'number',
-                description: 'Line number (0-indexed)'
+                description: 'Line number (1-based, as shown in editors)'
               },
               column: {
                 type: 'number',
-                description: 'Column number (0-indexed)'
+                description: 'Column number (1-based, as shown in editors)'
               }
             },
             required: ['file_path', 'line', 'column']
@@ -264,11 +264,11 @@ async function main() {
               },
               line: {
                 type: 'number',
-                description: 'Line number (0-indexed)'
+                description: 'Line number (1-based, as shown in editors)'
               },
               column: {
                 type: 'number',
-                description: 'Column number (0-indexed)'
+                description: 'Column number (1-based, as shown in editors)'
               }
             },
             required: ['file_path', 'line', 'column']
@@ -319,11 +319,11 @@ async function main() {
               },
               line: {
                 type: 'number',
-                description: 'Line number (0-indexed)'
+                description: 'Line number (1-based, as shown in editors)'
               },
               column: {
                 type: 'number',
-                description: 'Column number (0-indexed)'
+                description: 'Column number (1-based, as shown in editors)'
               }
             },
             required: ['file_path', 'line', 'column']
@@ -341,11 +341,11 @@ async function main() {
               },
               line: {
                 type: 'number',
-                description: 'Line number (0-indexed)'
+                description: 'Line number (1-based, as shown in editors)'
               },
               column: {
                 type: 'number',
-                description: 'Column number (0-indexed)'
+                description: 'Column number (1-based, as shown in editors)'
               }
             },
             required: ['file_path', 'line', 'column']
@@ -380,8 +380,8 @@ async function main() {
             clangdManager.getClient(),
             fileTracker,
             args.file_path as string,
-            args.line as number,
-            args.column as number
+            (args.line as number) - 1,
+            (args.column as number) - 1
           );
           return {
             content: [{ type: 'text', text: result }]
@@ -393,8 +393,8 @@ async function main() {
             clangdManager.getClient(),
             fileTracker,
             args.file_path as string,
-            args.line as number,
-            args.column as number,
+            (args.line as number) - 1,
+            (args.column as number) - 1,
             args.include_declaration !== false
           );
           return {
@@ -407,8 +407,8 @@ async function main() {
             clangdManager.getClient(),
             fileTracker,
             args.file_path as string,
-            args.line as number,
-            args.column as number
+            (args.line as number) - 1,
+            (args.column as number) - 1
           );
           return {
             content: [{ type: 'text', text: result }]
@@ -431,8 +431,8 @@ async function main() {
             clangdManager.getClient(),
             fileTracker,
             args.file_path as string,
-            args.line as number,
-            args.column as number
+            (args.line as number) - 1,
+            (args.column as number) - 1
           );
           return {
             content: [{ type: 'text', text: result }]
@@ -470,8 +470,8 @@ async function main() {
             clangdManager.getClient(),
             fileTracker,
             args.file_path as string,
-            args.line as number,
-            args.column as number
+            (args.line as number) - 1,
+            (args.column as number) - 1
           );
           return {
             content: [{ type: 'text', text: result }]
@@ -483,8 +483,8 @@ async function main() {
             clangdManager.getClient(),
             fileTracker,
             args.file_path as string,
-            args.line as number,
-            args.column as number
+            (args.line as number) - 1,
+            (args.column as number) - 1
           );
           return {
             content: [{ type: 'text', text: result }]

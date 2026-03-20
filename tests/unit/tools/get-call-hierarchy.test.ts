@@ -121,11 +121,11 @@ describe('get-call-hierarchy', () => {
       expect(firstCaller.caller).toBe('caller1');
       expect(firstCaller.kind).toBe('Function');
       expect(firstCaller.location.file).toBe('/path/to/caller1.cpp');
-      expect(firstCaller.location.line).toBe(30);
-      expect(firstCaller.location.column).toBe(5);
+      expect(firstCaller.location.line).toBe(31);
+      expect(firstCaller.location.column).toBe(6);
       expect(firstCaller.call_sites).toHaveLength(1);
-      expect(firstCaller.call_sites[0].line).toBe(35);
-      expect(firstCaller.call_sites[0].column).toBe(2);
+      expect(firstCaller.call_sites[0].line).toBe(36);
+      expect(firstCaller.call_sites[0].column).toBe(3);
     });
 
     it('should format outgoing calls correctly', async () => {
@@ -160,11 +160,11 @@ describe('get-call-hierarchy', () => {
       expect(firstCallee.callee).toBe('callee1');
       expect(firstCallee.kind).toBe('Function');
       expect(firstCallee.location.file).toBe('/path/to/callee1.cpp');
-      expect(firstCallee.location.line).toBe(70);
-      expect(firstCallee.location.column).toBe(5);
+      expect(firstCallee.location.line).toBe(71);
+      expect(firstCallee.location.column).toBe(6);
       expect(firstCallee.call_sites).toHaveLength(1);
-      expect(firstCallee.call_sites[0].line).toBe(15);
-      expect(firstCallee.call_sites[0].column).toBe(2);
+      expect(firstCallee.call_sites[0].line).toBe(16);
+      expect(firstCallee.call_sites[0].column).toBe(3);
     });
 
     it('should handle no hierarchy available', async () => {
@@ -250,8 +250,8 @@ describe('get-call-hierarchy', () => {
       const parsed = JSON.parse(result);
 
       expect(parsed.symbol.location.file).toBe('/path/to/file.cpp');
-      expect(parsed.symbol.location.line).toBe(10);
-      expect(parsed.symbol.location.column).toBe(5);
+      expect(parsed.symbol.location.line).toBe(11);
+      expect(parsed.symbol.location.column).toBe(6);
     });
 
     it('should handle multiple call sites per relationship', async () => {
@@ -298,9 +298,9 @@ describe('get-call-hierarchy', () => {
       const parsed = JSON.parse(result);
 
       expect(parsed.incoming_calls[0].call_sites).toHaveLength(3);
-      expect(parsed.incoming_calls[0].call_sites[0].line).toBe(15);
-      expect(parsed.incoming_calls[0].call_sites[1].line).toBe(17);
-      expect(parsed.incoming_calls[0].call_sites[2].line).toBe(19);
+      expect(parsed.incoming_calls[0].call_sites[0].line).toBe(16);
+      expect(parsed.incoming_calls[0].call_sites[1].line).toBe(18);
+      expect(parsed.incoming_calls[0].call_sites[2].line).toBe(20);
     });
 
     it('should handle unknown symbol kinds', async () => {

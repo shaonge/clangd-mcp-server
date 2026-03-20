@@ -55,8 +55,8 @@ export async function getCallHierarchy(
     kind: symbolKind,
     location: {
       file: uriToPath(result.item.uri),
-      line: result.item.selectionRange.start.line,
-      column: result.item.selectionRange.start.character
+      line: result.item.selectionRange.start.line + 1,
+      column: result.item.selectionRange.start.character + 1
     }
   };
 
@@ -68,12 +68,12 @@ export async function getCallHierarchy(
       kind: callerKind,
       location: {
         file: uriToPath(call.from.uri),
-        line: call.from.selectionRange.start.line,
-        column: call.from.selectionRange.start.character
+        line: call.from.selectionRange.start.line + 1,
+        column: call.from.selectionRange.start.character + 1
       },
       call_sites: call.fromRanges.map(range => ({
-        line: range.start.line,
-        column: range.start.character
+        line: range.start.line + 1,
+        column: range.start.character + 1
       }))
     };
   });
@@ -86,12 +86,12 @@ export async function getCallHierarchy(
       kind: calleeKind,
       location: {
         file: uriToPath(call.to.uri),
-        line: call.to.selectionRange.start.line,
-        column: call.to.selectionRange.start.character
+        line: call.to.selectionRange.start.line + 1,
+        column: call.to.selectionRange.start.character + 1
       },
       call_sites: call.fromRanges.map(range => ({
-        line: range.start.line,
-        column: range.start.character
+        line: range.start.line + 1,
+        column: range.start.character + 1
       }))
     };
   });

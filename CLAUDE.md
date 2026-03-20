@@ -23,7 +23,7 @@ See existing tools (find-definition.ts, find-references.ts) for examples.
 - **File lifecycle**: Must call `fileTracker.ensureFileOpen()` before any file-based LSP request
 - **LSP results**: textDocument/definition returns `Location | Location[] | null` - normalize to array
 - **Imports**: Must use `.js` extension (ES modules), not `.ts`
-- **Positions**: LSP uses 0-indexed line/column
+- **Positions**: MCP API uses 1-based line/column (as shown in editors). LSP internally uses 0-indexed. Input conversion (`-1`) happens in `index.ts`, output conversion (`+1`) happens in each tool's response formatter
 
 ## Architecture Notes
 

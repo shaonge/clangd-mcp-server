@@ -50,8 +50,8 @@ export async function getTypeHierarchy(
     kind: symbolKind,
     location: {
       file: uriToPath(result.item.uri),
-      line: result.item.selectionRange.start.line,
-      column: result.item.selectionRange.start.character
+      line: result.item.selectionRange.start.line + 1,
+      column: result.item.selectionRange.start.character + 1
     }
   };
 
@@ -63,8 +63,8 @@ export async function getTypeHierarchy(
       kind: supertypeKind,
       location: {
         file: uriToPath(supertype.uri),
-        line: supertype.selectionRange.start.line,
-        column: supertype.selectionRange.start.character
+        line: supertype.selectionRange.start.line + 1,
+        column: supertype.selectionRange.start.character + 1
       }
     };
   });
@@ -77,8 +77,8 @@ export async function getTypeHierarchy(
       kind: subtypeKind,
       location: {
         file: uriToPath(subtype.uri),
-        line: subtype.selectionRange.start.line,
-        column: subtype.selectionRange.start.character
+        line: subtype.selectionRange.start.line + 1,
+        column: subtype.selectionRange.start.character + 1
       }
     };
   });
