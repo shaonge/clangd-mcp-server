@@ -5,8 +5,6 @@
 import { describe, it, expect, jest } from '@jest/globals';
 import { workspaceSymbolSearch } from '../../../src/tools/workspace-symbol.js';
 import { LSPClient } from '../../../src/lsp-client.js';
-import type { BackgroundIndexStatus } from '../../../src/clangd-manager.js';
-import type { IndexAwareToolOptions } from '../../../src/tools/index-aware-response.js';
 
 describe('workspaceSymbolSearch', () => {
   it('formats workspace symbol results', async () => {
@@ -44,40 +42,6 @@ describe('workspaceSymbolSearch', () => {
         uri: 'file:///tmp/startup_extra.h'
       }]
     });
-  });
-
-  it('includes structured index status and note when available', async () => {
-    const client = {
-      request: jest.fn(async () => [{
-        name: 'StartupExtra',
-        kind: 5,
-        location: {
-          uri: 'file:///tmp/startup_extra.h',
-          range: {
-            start: { line: 10, character: 4 },
-            end: { line: 10, character: 16 }
-          }
-        }
-      }])
-    } as unknown as LSPClient;
-    const indexStatus: BackgroundIndexStatus = {
-      state: 'partial',
-      enabled: true,
-      in_progress: false,
-      progress_percentage: 100,
-      indexed_files: 6,
-      total_files: 6,
-      message: '6/6'
-    };
-
-    const options: IndexAwareToolOptions = {
-      getBackgroundIndexStatus: () => indexStatus,
-      getBackgroundIndexCompletionBasis: () => 'none'
-    };
-    const result = await workspaceSymbolSearch(client, 'StartupExtra', 100, options);
-    const parsed = JSON.parse(result);
-
-    expect(parsed.note).toContain('not reached confirmed full workspace coverage yet');
   });
 
   it('truncates results to the requested limit', async () => {
@@ -132,25 +96,5 @@ describe('workspaceSymbolSearch', () => {
       found: false,
       message: "No symbols found matching 'DefinitelyMissing'"
     });
-  });
-
-  it('attaches an explanatory note for disabled background indexing', async () => {
-    const client = {
-      request: jest.fn(async () => [])
-    } as unknown as LSPClient;
-    const indexStatus: BackgroundIndexStatus = {
-      state: 'disabled',
-      enabled: false,
-      in_progress: false
-    };
-
-    const options: IndexAwareToolOptions = {
-      getBackgroundIndexStatus: () => indexStatus,
-      getBackgroundIndexCompletionBasis: () => 'none'
-    };
-    const result = await workspaceSymbolSearch(client, 'DefinitelyMissing', 100, options);
-    const parsed = JSON.parse(result);
-
-    expect(parsed.note).toContain('Background indexing is disabled');
   });
 });

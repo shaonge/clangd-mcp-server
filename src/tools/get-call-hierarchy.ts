@@ -4,7 +4,6 @@
 
 import { LSPClient } from '../lsp-client.js';
 import { FileTracker } from '../file-tracker.js';
-import { getIndexAwareResponseExtras, type IndexAwareToolOptions } from './index-aware-response.js';
 import { uriToPath } from '../utils/uri.js';
 import { withRetry } from '../utils/errors.js';
 import {
@@ -20,8 +19,7 @@ export async function getCallHierarchy(
   fileTracker: FileTracker,
   filePath: string,
   line: number,
-  column: number,
-  options: IndexAwareToolOptions = {}
+  column: number
 ): Promise<string> {
   // Ensure file is opened
   const uri = await fileTracker.ensureFileOpen(filePath);
@@ -46,11 +44,7 @@ export async function getCallHierarchy(
   if (!result) {
     return JSON.stringify({
       found: false,
-      message: 'No call hierarchy available at this position',
-      ...getIndexAwareResponseExtras(options, {
-        operation: 'Call hierarchy',
-        resultEmpty: true
-      })
+      message: 'No call hierarchy available at this position'
     }, null, 2);
   }
 
@@ -108,10 +102,6 @@ export async function getCallHierarchy(
     incoming_calls: incomingCalls,
     incoming_count: incomingCalls.length,
     outgoing_calls: outgoingCalls,
-    outgoing_count: outgoingCalls.length,
-    ...getIndexAwareResponseExtras(options, {
-      operation: 'Call hierarchy',
-      resultEmpty: false
-    })
+    outgoing_count: outgoingCalls.length
   }, null, 2);
 }

@@ -6,8 +6,6 @@ import { LSPClient } from '../lsp-client.js';
 import { uriToPath } from '../utils/uri.js';
 import { withRetry } from '../utils/errors.js';
 import { symbolKindNames } from '../utils/lsp-types.js';
-import type { IndexAwareToolOptions } from './index-aware-response.js';
-import { getIndexAwareResponseExtras } from './index-aware-response.js';
 
 interface SymbolInformation {
   name: string;
@@ -25,8 +23,7 @@ interface SymbolInformation {
 export async function workspaceSymbolSearch(
   lspClient: LSPClient,
   query: string,
-  limit: number = 100,
-  options: IndexAwareToolOptions = {}
+  limit: number = 100
 ): Promise<string> {
   // Make LSP request with retry
   const symbols: SymbolInformation[] = await withRetry(async () => {
@@ -37,17 +34,11 @@ export async function workspaceSymbolSearch(
     return result || [];
   });
 
-  const extras = getIndexAwareResponseExtras(options, {
-    operation: 'Symbol search',
-    resultEmpty: symbols.length === 0
-  });
-
   // Format results
   if (symbols.length === 0) {
     return JSON.stringify({
       found: false,
-      message: `No symbols found matching '${query}'`,
-      ...extras
+      message: `No symbols found matching '${query}'`
     }, null, 2);
   }
 
@@ -69,7 +60,6 @@ export async function workspaceSymbolSearch(
     count: symbols.length,
     returned: formattedSymbols.length,
     truncated: symbols.length > limit,
-    symbols: formattedSymbols,
-    ...extras
+    symbols: formattedSymbols
   }, null, 2);
 }

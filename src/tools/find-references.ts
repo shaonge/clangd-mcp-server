@@ -4,7 +4,6 @@
 
 import { LSPClient } from '../lsp-client.js';
 import { FileTracker } from '../file-tracker.js';
-import { getIndexAwareResponseExtras, type IndexAwareToolOptions } from './index-aware-response.js';
 import { uriToPath } from '../utils/uri.js';
 import { withRetry } from '../utils/errors.js';
 import { Location } from '../utils/lsp-types.js';
@@ -15,8 +14,7 @@ export async function findReferences(
   filePath: string,
   line: number,
   column: number,
-  includeDeclaration: boolean = true,
-  options: IndexAwareToolOptions = {}
+  includeDeclaration: boolean = true
 ): Promise<string> {
   // Ensure file is opened
   const uri = await fileTracker.ensureFileOpen(filePath);
@@ -38,11 +36,7 @@ export async function findReferences(
   if (locations.length === 0) {
     return JSON.stringify({
       found: false,
-      message: 'No references found',
-      ...getIndexAwareResponseExtras(options, {
-        operation: 'Reference search',
-        resultEmpty: true
-      })
+      message: 'No references found'
     }, null, 2);
   }
 
@@ -56,10 +50,6 @@ export async function findReferences(
   return JSON.stringify({
     found: true,
     count: formattedLocations.length,
-    locations: formattedLocations,
-    ...getIndexAwareResponseExtras(options, {
-      operation: 'Reference search',
-      resultEmpty: false
-    })
+    locations: formattedLocations
   }, null, 2);
 }

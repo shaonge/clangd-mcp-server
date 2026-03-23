@@ -31,7 +31,6 @@ import { getDocumentSymbols } from './tools/document-symbols.js';
 import { getDiagnostics, DiagnosticsCache } from './tools/get-diagnostics.js';
 import { getCallHierarchy } from './tools/get-call-hierarchy.js';
 import { getTypeHierarchy } from './tools/get-type-hierarchy.js';
-import type { IndexAwareToolOptions } from './tools/index-aware-response.js';
 
 // Global state
 let clangdManager: ClangdManager | null = null;
@@ -111,13 +110,6 @@ async function openSeedFile(compileCommandsPath?: string): Promise<void> {
     logger.info('Opening seed file to trigger compilation database loading:', seedFile);
     await fileTracker.ensureFileOpen(seedFile);
   }
-}
-
-function getIndexAwareToolOptions(manager: ClangdManager): IndexAwareToolOptions {
-  return {
-    getBackgroundIndexStatus: () => manager.getBackgroundIndexStatus(),
-    getBackgroundIndexCompletionBasis: () => manager.getBackgroundIndexCompletionBasis()
-  };
 }
 
 function summarizeToolArgs(name: string, args: any): Record<string, unknown> {
@@ -491,8 +483,7 @@ async function main() {
             args.file_path as string,
             (args.line as number) - 1,
             (args.column as number) - 1,
-            args.include_declaration !== false,
-            getIndexAwareToolOptions(clangdManager)
+            args.include_declaration !== false
           );
           return buildToolResponse(name, result, startedAtMs);
         }
@@ -514,8 +505,7 @@ async function main() {
             fileTracker,
             args.file_path as string,
             (args.line as number) - 1,
-            (args.column as number) - 1,
-            getIndexAwareToolOptions(clangdManager)
+            (args.column as number) - 1
           );
           return buildToolResponse(name, result, startedAtMs);
         }
@@ -548,8 +538,7 @@ async function main() {
             fileTracker,
             args.file_path as string,
             (args.line as number) - 1,
-            (args.column as number) - 1,
-            getIndexAwareToolOptions(clangdManager)
+            (args.column as number) - 1
           );
           return buildToolResponse(name, result, startedAtMs);
         }
@@ -560,8 +549,7 @@ async function main() {
             fileTracker,
             args.file_path as string,
             (args.line as number) - 1,
-            (args.column as number) - 1,
-            getIndexAwareToolOptions(clangdManager)
+            (args.column as number) - 1
           );
           return buildToolResponse(name, result, startedAtMs);
         }
