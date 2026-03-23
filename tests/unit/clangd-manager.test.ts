@@ -126,6 +126,22 @@ describe('ClangdManager', () => {
       total_files: 6,
       message: '6/6'
     });
+    expect(manager.getBackgroundIndexCompletionBasis()).toBe('coverage');
+  });
+
+  it('reports progress basis when completed without file counts', () => {
+    const manager = new ClangdManager(config);
+    const managerAny = manager as any;
+    managerAny.lastSuccessfulStart = Date.now() - 60_000;
+    managerAny.backgroundIndexHasObservedActivity = true;
+    managerAny.backgroundIndexCycleEnded = true;
+    managerAny.backgroundIndexHasStrongCompletionSignal = true;
+    managerAny.backgroundIndexProgressPercentage = 100;
+    // No indexed_files / total_files — only percentage was reported
+    managerAny.backgroundIndexStartedAtMs = Date.now() - 5_000;
+    managerAny.backgroundIndexLastUpdatedAtMs = Date.now() - 100;
+
+    expect(manager.getBackgroundIndexState()).toBe('completed');
     expect(manager.getBackgroundIndexCompletionBasis()).toBe('progress');
   });
 

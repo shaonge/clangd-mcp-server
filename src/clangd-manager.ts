@@ -465,7 +465,14 @@ export class ClangdManager {
   ): BackgroundIndexCompletionBasis {
     switch (state) {
       case 'completed':
-        // Current "completed" is inferred from clangd progress only.
+        // If clangd reported indexed_files >= total_files, we have file-level
+        // coverage confirmation, not just a progress-percentage signal.
+        if (this.backgroundIndexIndexedFiles != null &&
+            this.backgroundIndexTotalFiles != null &&
+            this.backgroundIndexIndexedFiles >= this.backgroundIndexTotalFiles &&
+            this.backgroundIndexTotalFiles > 0) {
+          return 'coverage';
+        }
         return 'progress';
       case 'disabled':
       case 'indexing':

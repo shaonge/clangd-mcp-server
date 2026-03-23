@@ -6,6 +6,7 @@ import { describe, it, expect, jest } from '@jest/globals';
 import { workspaceSymbolSearch } from '../../../src/tools/workspace-symbol.js';
 import { LSPClient } from '../../../src/lsp-client.js';
 import type { BackgroundIndexStatus } from '../../../src/clangd-manager.js';
+import type { IndexAwareToolOptions } from '../../../src/tools/index-aware-response.js';
 
 describe('workspaceSymbolSearch', () => {
   it('formats workspace symbol results', async () => {
@@ -69,9 +70,11 @@ describe('workspaceSymbolSearch', () => {
       message: '6/6'
     };
 
-    const result = await workspaceSymbolSearch(client, 'StartupExtra', 100, {
-      getBackgroundIndexStatus: () => indexStatus
-    });
+    const options: IndexAwareToolOptions = {
+      getBackgroundIndexStatus: () => indexStatus,
+      getBackgroundIndexCompletionBasis: () => 'none'
+    };
+    const result = await workspaceSymbolSearch(client, 'StartupExtra', 100, options);
     const parsed = JSON.parse(result);
 
     expect(parsed.note).toContain('not reached confirmed full workspace coverage yet');
@@ -141,9 +144,11 @@ describe('workspaceSymbolSearch', () => {
       in_progress: false
     };
 
-    const result = await workspaceSymbolSearch(client, 'DefinitelyMissing', 100, {
-      getBackgroundIndexStatus: () => indexStatus
-    });
+    const options: IndexAwareToolOptions = {
+      getBackgroundIndexStatus: () => indexStatus,
+      getBackgroundIndexCompletionBasis: () => 'none'
+    };
+    const result = await workspaceSymbolSearch(client, 'DefinitelyMissing', 100, options);
     const parsed = JSON.parse(result);
 
     expect(parsed.note).toContain('Background indexing is disabled');
