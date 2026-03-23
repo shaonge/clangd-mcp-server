@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import { existsSync, createReadStream } from 'node:fs';
-import { join, resolve, dirname } from 'node:path';
+import { join, resolve, dirname, isAbsolute } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { logger } from './utils/logger.js';
@@ -359,7 +359,7 @@ export async function getFirstFileFromCompileCommands(
       }
 
       let filePath = file;
-      if (!filePath.startsWith('/') && directory) {
+      if (!isAbsolute(filePath) && directory) {
         filePath = resolve(directory, filePath);
       }
 
@@ -391,5 +391,5 @@ function extractJsonStringField(entryText: string, fieldName: string): string | 
 }
 
 function isSupportedCompileCommandSource(filePath: string): boolean {
-  return /\.(?:c|cc|cp|cpp|cxx|c\+\+|C|CC|CPP|CXX)$/.test(filePath);
+  return /\.(?:c|cc|cp|cpp|cxx|c\+\+)$/i.test(filePath);
 }
