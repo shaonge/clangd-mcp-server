@@ -206,6 +206,33 @@ describe('ClangdManager', () => {
     );
   });
 
+  it('does not schedule auto-restart when cleanup kills the process after a failed start', () => {
+    jest.useFakeTimers();
+
+    const manager = new ClangdManager(config);
+    const managerAny = manager as any;
+
+    // Simulate: spawnClangd() succeeded but initialize() will fail.
+    // cleanup() kills the process → exit event fires → handleProcessExit().
+    // Before the fix, shuttingDown was false so handleProcessExit() treated
+    // the exit as a crash and scheduled a background restart, leaving an
+    // orphaned clangd process that the caller could no longer control.
+
+    // Call cleanup (as start()'s catch block does)
+    managerAny.cleanup();
+
+    // Now simulate the exit event that the killed process would emit
+    managerAny.handleProcessExit(null, 'SIGTERM');
+
+    // Advance timers past the restart delay
+    jest.advanceTimersByTime(5000);
+
+    // No restart should have been scheduled
+    expect(managerAny.shuttingDown).toBe(true);
+    expect(managerAny.isRestarting).toBe(false);
+    expect(managerAny.restartCount).toBe(0);
+  });
+
   it('logs background index progress summaries instead of raw file-level stderr', () => {
     const manager = new ClangdManager(config);
     const managerAny = manager as any;

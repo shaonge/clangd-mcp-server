@@ -319,6 +319,12 @@ export class ClangdManager {
    * Force cleanup of clangd resources
    */
   private async cleanup(): Promise<void> {
+    // Mark as shutting down so the exit handler won't trigger auto-restart.
+    // Without this, killing the process during a failed start() would be
+    // misinterpreted as a crash, scheduling a background restart that the
+    // caller can no longer control.
+    this.shuttingDown = true;
+
     if (this.lspClient) {
       this.lspClient.close();
       this.lspClient = undefined;
@@ -339,11 +345,7 @@ export class ClangdManager {
     this.process = undefined;
     this.initialized = false;
     this.clearProgressTracking();
-
-    // Reset flags only if not shutting down (cleanup during restart vs shutdown)
-    if (!this.shuttingDown) {
-      this.isRestarting = false;
-    }
+    this.isRestarting = false;
   }
 
   /**
