@@ -27,7 +27,7 @@
     "test:watch": "NODE_OPTIONS='--experimental-vm-modules' ./node_modules/.bin/jest --watch",
     "test:coverage": "NODE_OPTIONS='--experimental-vm-modules' ./node_modules/.bin/jest --coverage",
     "test:unit": "NODE_OPTIONS='--experimental-vm-modules' ./node_modules/.bin/jest tests/unit",
-    "test:integration": "NODE_OPTIONS='--experimental-vm-modules' ./node_modules/.bin/jest tests/integration",
+    "test:integration": "NODE_OPTIONS='--experimental-vm-modules' ./node_modules/.bin/jest tests/integration --detectOpenHandles",
     "test:e2e": "NODE_OPTIONS='--experimental-vm-modules' ./node_modules/.bin/jest tests/e2e",
     "release:check": "test -z \"$(git status --porcelain)\" || (echo \"npm error Git working directory not clean.\" >&2 && exit 1)",
     "release": "npm run release:check && npm version patch && npm publish --access=public"

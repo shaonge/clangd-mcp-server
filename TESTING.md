@@ -5,6 +5,7 @@
 ```bash
 npm test           # All tests
 npm run test:unit  # Unit tests only
+npm run test:integration # Integration tests with real processes
 npm run test:watch # Watch mode
 ```
 
@@ -19,7 +20,11 @@ npm run test:watch # Watch mode
 **Not yet tested:**
 - Clangd manager (spawning, crash recovery)
 - Tools (9 tools: definition, references, hover, workspace symbols, implementations, document symbols, diagnostics, call hierarchy, type hierarchy)
-- Integration/E2E tests
+- E2E tests
+
+**Integration tests:**
+- `tests/integration/duplicate-process-cleanup.test.ts` - launches real `npm exec -> node -> clangd` trees and verifies a newly started server kills conflicting sibling wrapper subtrees, exits immediately, and leaves the next retry free to start cleanly
+- `tests/integration/stdio-shutdown.test.ts` - launches real `npm exec -> node -> clangd` trees and verifies the server exits cleanly when the parent closes stdin or when stdout hits EPIPE
 
 ## Test Helpers
 

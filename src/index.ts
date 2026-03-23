@@ -20,6 +20,8 @@ const VERSION: string = packageJson.version;
 import { detectConfiguration, getFirstFileFromCompileCommands } from './config-detector.js';
 import { ClangdManager } from './clangd-manager.js';
 import { FileTracker } from './file-tracker.js';
+import { terminateDuplicateNpmExecSiblings } from './duplicate-process-cleanup.js';
+import { createShutdownHandler, registerProcessLifecycleHandlers } from './process-lifecycle.js';
 
 import { findDefinition } from './tools/find-definition.js';
 import { findReferences } from './tools/find-references.js';
@@ -250,6 +252,13 @@ async function ensureClangdInitialized(): Promise<void> {
  */
 async function main() {
   logger.info(`Starting clangd MCP server v${VERSION}`);
+
+  const cleanupResult = await terminateDuplicateNpmExecSiblings({ logger });
+  if (cleanupResult.terminatedPids.length > 0) {
+    throw new Error(
+      `Killed conflicting older clangd MCP instance(s) rooted at wrapper pid(s) ${cleanupResult.duplicateWrapperPids.join(', ')}. Retry startup now that the previous instance has been terminated.`
+    );
+  }
 
   const server = new Server(
     {
@@ -581,32 +590,32 @@ async function main() {
     }
   });
 
-  // Graceful shutdown handler
-  const shutdownHandler = async (signal: string) => {
-    if (isShuttingDown) {
-      logger.warn(`Received ${signal} again, forcing exit`);
-      process.exit(1);
-    }
+  const shutdownHandler = createShutdownHandler({
+    shutdown: async (reason: string) => {
+      isShuttingDown = true;
+      logger.info(`Received ${reason}, shutting down...`);
 
-    isShuttingDown = true;
-    logger.info(`Received ${signal}, shutting down...`);
-
-    try {
       if (fileTracker) {
         fileTracker.closeAll();
       }
+
+      try {
+        await server.close();
+      } catch (error) {
+        logger.warn('Error while closing MCP transport:', error);
+      }
+
       if (clangdManager) {
         await clangdManager.shutdown();
       }
-      process.exit(0);
-    } catch (error) {
-      logger.error('Error during shutdown:', error);
-      process.exit(1);
-    }
-  };
+    },
+    logger
+  });
 
-  process.on('SIGINT', () => shutdownHandler('SIGINT'));
-  process.on('SIGTERM', () => shutdownHandler('SIGTERM'));
+  registerProcessLifecycleHandlers({
+    requestShutdown: shutdownHandler,
+    logger
+  });
 
   // Start server with stdio transport
   const transport = new StdioServerTransport();
