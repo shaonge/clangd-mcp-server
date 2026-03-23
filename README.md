@@ -101,7 +101,7 @@ This project uses the clangd MCP server for C++ code intelligence. Use these too
 | `CLANGD_PATH` | Path to clangd binary | Auto-detected |
 | `CLANGD_ARGS` | Additional clangd arguments | Auto-configured |
 | `LOG_LEVEL` | MCP log level (ERROR/WARN/INFO/DEBUG) | `INFO` |
-| `CLANGD_LOG_LEVEL` | Clangd log level | `error` |
+| `CLANGD_LOG_LEVEL` | Clangd log level | `info` |
 
 **Clangd auto-detection order:** `CLANGD_PATH` → project bundled (Chromium: `third_party/llvm-build/.../clangd`)
 
@@ -112,10 +112,10 @@ Some large projects bundle their own clangd.
 For other projects in a similar situation, set `CLANGD_PATH` to specify the bundled clangd.
 If neither `CLANGD_PATH` nor a supported project-bundled clangd is available, the server fails to start.
 
-For bettern performance, background indexing is disabled by default. Usually there is already an axisting `clangd` server taking care of indexing the codebase. You can enable it with:
+Background indexing is enabled by default, which is required for workspace/symbol and cross-file tools to work on cold start. You can disable it with:
 
 ```json
-{"env": {"CLANGD_ARGS": "--background-index --limit-results=1000"}}
+{"env": {"CLANGD_ARGS": "--background-index=false"}}
 ```
 
 Large projects might consider using [remote index](https://clangd.llvm.org/design/remote-index).

@@ -46,6 +46,7 @@ interface ProgressTokenInfo {
 
 export class ClangdManager {
   private config: ClangdConfig;
+  private clientVersion: string;
   private process?: ChildProcess;
   private lspClient?: LSPClient;
   private initialized: boolean = false;
@@ -65,10 +66,11 @@ export class ClangdManager {
   private backgroundIndexIndexedFiles?: number;
   private backgroundIndexTotalFiles?: number;
   private backgroundIndexMessage?: string;
-  private onRestartedCallback?: () => void;
+  private onRestartedCallbacks: Array<() => void> = [];
 
-  constructor(config: ClangdConfig) {
+  constructor(config: ClangdConfig, clientVersion: string = '0.1.0') {
     this.config = config;
+    this.clientVersion = clientVersion;
   }
 
   private getProcessPid(process: ChildProcess | undefined = this.process): number | 'unknown' {
@@ -144,7 +146,7 @@ export class ClangdManager {
     this.process.stderr.on('data', (data: Buffer) => {
       const message = data.toString().trim();
       if (message) {
-        logger.info(`Clangd stderr (clangd_pid ${this.getProcessPid()}):`, message);
+        logger.debug(`Clangd stderr (clangd_pid ${this.getProcessPid()}):`, message);
       }
     });
 
@@ -170,7 +172,7 @@ export class ClangdManager {
       processId: process.pid,
       clientInfo: {
         name: 'clangd-mcp-server',
-        version: '0.1.0'
+        version: this.clientVersion
       },
       rootUri: `file://${this.config.projectRoot}`,
       capabilities: {
@@ -267,8 +269,12 @@ export class ClangdManager {
           .then(() => {
             this.isRestarting = false;
             logger.info('Clangd restarted successfully');
-            if (this.onRestartedCallback) {
-              this.onRestartedCallback();
+            for (const cb of this.onRestartedCallbacks) {
+              try {
+                cb();
+              } catch (e) {
+                logger.error('onRestarted callback error:', e);
+              }
             }
           })
           .catch((error) => {
@@ -354,7 +360,7 @@ export class ClangdManager {
    * Register a callback that runs after clangd is restarted from a crash.
    */
   onRestarted(callback: () => void): void {
-    this.onRestartedCallback = callback;
+    this.onRestartedCallbacks.push(callback);
   }
 
   /**
@@ -524,10 +530,11 @@ export class ClangdManager {
   private handleProgressReport(token: string | number, value: any): void {
     const now = Date.now();
     const existing = this.activeProgressTokens.get(token);
-    const isIndexProgress = existing?.isIndexProgress ?? this.isIndexProgressToken(token);
-    if (!existing && !isIndexProgress) {
+    if (!existing) {
+      // Ignore report for tokens that never had a begin event
       return;
     }
+    const isIndexProgress = existing.isIndexProgress;
 
     const counts = this.parseProgressCounts(value.message);
     const progressPercentage = this.toOptionalNumber(value.percentage);

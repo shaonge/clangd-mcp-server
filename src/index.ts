@@ -183,7 +183,7 @@ async function ensureClangdInitialized(): Promise<void> {
       logger.info('Initializing clangd...');
 
       const config = detectConfiguration();
-      clangdManager = new ClangdManager(config);
+      clangdManager = new ClangdManager(config, VERSION);
       await clangdManager.start();
 
       fileTracker = new FileTracker(clangdManager.getClient());
@@ -205,14 +205,29 @@ async function ensureClangdInitialized(): Promise<void> {
         logger.error('Failed to open seed file:', error);
       });
 
-      // Re-open seed file after crash restart so background indexing resumes
+      // After crash restart, rebuild fileTracker/diagnosticsCache with the new
+      // lspClient and re-open the seed file so background indexing resumes.
       clangdManager.onRestarted(() => {
+        if (!clangdManager) return;
+        const newClient = clangdManager.getClient();
+        fileTracker = new FileTracker(newClient);
+        diagnosticsCache = new DiagnosticsCache(newClient);
+        fileTracker.onFileClosed((uri) => {
+          if (diagnosticsCache) {
+            diagnosticsCache.clearForFile(uri);
+          }
+        });
+        logger.info('Rebuilt fileTracker and diagnosticsCache after clangd restart');
         openSeedFile(config.compileCommandsPath).catch((error) => {
           logger.error('Failed to open seed file after restart:', error);
         });
       });
 
       logger.info('Clangd initialization complete');
+    } catch (error) {
+      // Clear partially-initialized manager to avoid zombie processes on retry
+      clangdManager = null;
+      throw error;
     } finally {
       // Release lock after completion (success or failure)
       initializationPromise = null;

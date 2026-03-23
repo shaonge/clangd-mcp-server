@@ -36,7 +36,7 @@ Data flow: MCP request → index.ts routes → FileTracker opens file → LSPCli
 
 ## Design Decisions
 
-- **Background indexing OFF by default**: MCP sporadic queries don't benefit, saves GBs of memory
+- **Background indexing ON by default**: Required for workspace/symbol and cross-file tools to work on cold start. Users can disable via `CLANGD_ARGS=--background-index=false`
 - **Lazy initialization**: clangd starts on first query, not at server startup
 - **ES modules**: Required by MCP SDK, all imports need .js extension
 - **Retry logic**: Exponential backoff for transient LSP errors (100ms → 200ms → 400ms, max 3 attempts)
