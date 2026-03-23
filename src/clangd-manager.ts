@@ -81,6 +81,9 @@ export class ClangdManager {
    * Start clangd and initialize the LSP connection
    */
   async start(): Promise<void> {
+    if (this.shuttingDown) {
+      throw new ClangdError('Cannot start: manager is shut down');
+    }
     if (this.process) {
       logger.warn('Clangd already running');
       return;
@@ -291,11 +294,14 @@ export class ClangdManager {
    * Gracefully shutdown clangd
    */
   async shutdown(): Promise<void> {
-    if (!this.process || this.shuttingDown) {
+    if (this.shuttingDown) {
       return;
     }
-
     this.shuttingDown = true;
+
+    if (!this.process) {
+      return;
+    }
     logger.info(`Shutting down clangd (clangd_pid ${this.getProcessPid()})`);
 
     try {

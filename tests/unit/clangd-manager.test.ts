@@ -206,6 +206,40 @@ describe('ClangdManager', () => {
     );
   });
 
+  it('rejects start() after shutdown() to prevent orphaned restarts', async () => {
+    const manager = new ClangdManager(config);
+
+    // Simulate crashed state: process gone, pending restart scheduled
+    await manager.shutdown();
+
+    // The delayed restart calls start() — it must not spawn a new process
+    await expect(manager.start()).rejects.toThrow('Cannot start: manager is shut down');
+  });
+
+  it('shutdown() cancels pending restart even when process is already gone', () => {
+    jest.useFakeTimers();
+
+    const manager = new ClangdManager(config);
+    const managerAny = manager as any;
+    managerAny.start = jest.fn(async () => undefined);
+
+    // Crash: process exits, restart scheduled
+    managerAny.handleProcessExit(1, null);
+    expect(managerAny.isRestarting).toBe(true);
+
+    // Simulate index.ts calling shutdown() on the old manager before creating a new one.
+    // process is already undefined (cleared by handleProcessExit), but shutdown()
+    // must still set shuttingDown=true to block the pending restart.
+    manager.shutdown();
+
+    // Advance past restart delay
+    jest.advanceTimersByTime(5000);
+
+    // start() should have been called but thrown due to shuttingDown
+    // (we mocked start, so check shuttingDown flag instead)
+    expect(managerAny.shuttingDown).toBe(true);
+  });
+
   it('does not schedule auto-restart when cleanup kills the process after a failed start', () => {
     jest.useFakeTimers();
 

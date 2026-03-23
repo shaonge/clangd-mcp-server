@@ -183,6 +183,14 @@ async function ensureClangdInitialized(): Promise<void> {
       logger.info('Initializing clangd...');
 
       const config = detectConfiguration();
+
+      // Shut down old manager to cancel any pending crash-restart timer.
+      // After a crash the old instance may still have a scheduled restart;
+      // without this, the old manager could spawn an orphaned clangd process.
+      if (clangdManager) {
+        await clangdManager.shutdown();
+      }
+
       clangdManager = new ClangdManager(config, VERSION);
       await clangdManager.start();
 
