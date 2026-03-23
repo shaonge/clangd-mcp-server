@@ -86,7 +86,8 @@ describe('Config detector', () => {
     delete process.env.CLANGD_PATH;
     const { detectConfiguration } = await loadConfigDetector();
 
-    expect(() => detectConfiguration()).toThrow(/clangd not found/);
+    expect(() => detectConfiguration()).toThrow(/PATH fallback is intentionally disabled/);
+    expect(() => detectConfiguration()).toThrow(/Set CLANGD_PATH/);
   });
 
   it('detects Chromium project and uses bundled clangd', async () => {

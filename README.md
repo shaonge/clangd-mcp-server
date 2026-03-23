@@ -10,8 +10,6 @@ This MCP provides coding agents like Claude Code with a collection of tools that
   - _"Find all references to the function at bar.h:100"_
 - `get_hover`: Get type information and documentation
   - _"What's the type at baz.cpp:200:15?"_
-- `workspace_symbol_search`: Search symbols across workspace
-  - _"Find symbols matching 'HttpRequest'"_
 - `find_implementations`: Find interface/virtual method implementations
   - _"Find implementations of interface.h:50"_
 - `get_document_symbols`: Get hierarchical symbol tree for a file
@@ -89,7 +87,7 @@ To help Claude Code automatically use clangd MCP tools for your C++ project, add
 This project uses the clangd MCP server for C++ code intelligence. Use these tools for:
 - Finding definitions and references
 - Getting type information
-- Searching symbols
+- Inspecting document symbols
 - Finding implementations
 - Getting diagnostics
 ```

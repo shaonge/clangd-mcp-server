@@ -197,6 +197,7 @@ describe('LSPClient', () => {
         method: 'test/notification',
       });
     });
+
   });
 
   describe('onNotification', () => {

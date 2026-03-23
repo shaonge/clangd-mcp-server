@@ -68,7 +68,7 @@ export class LSPClient {
     this.endHandler = () => {
       logger.info('LSP stdout ended');
       // Reject all pending requests
-      for (const [id, pending] of this.pendingRequests.entries()) {
+      for (const [, pending] of this.pendingRequests.entries()) {
         pending.reject(new Error('LSP connection closed'));
       }
       this.pendingRequests.clear();
@@ -186,7 +186,10 @@ export class LSPClient {
   }
 
   private handleNotification(notification: JsonRpcNotification): void {
-    if (notification.method !== '$/progress') {
+    if (
+      notification.method !== '$/progress' &&
+      notification.method !== 'textDocument/publishDiagnostics'
+    ) {
       logger.info('Received notification:', notification.method);
     }
 

@@ -40,7 +40,7 @@ export async function fetchTwoPhaseHierarchy<TItem, TIncoming, TOutgoing>(
 
   // Handle null or empty results
   if (!items || (Array.isArray(items) && items.length === 0)) {
-    logger.debug(`No hierarchy items found for ${prepareMethod}`);
+    logger.info(`No hierarchy items found for ${prepareMethod}`);
     return null;
   }
 

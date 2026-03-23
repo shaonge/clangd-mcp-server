@@ -82,6 +82,27 @@ function findProjectBundledClangd(projectRoot: string, isChromiumProject: boolea
   return undefined;
 }
 
+function getMissingClangdErrorMessage(projectRoot: string, isChromiumProject: boolean): string {
+  const chromiumBundledPath = join(projectRoot, 'third_party', 'llvm-build', 'Release+Asserts', 'bin', 'clangd');
+
+  if (isChromiumProject) {
+    return [
+      'clangd not found for this Chromium workspace.',
+      `Expected bundled clangd under: ${chromiumBundledPath}`,
+      'PATH fallback is intentionally disabled.',
+      'Set CLANGD_PATH to the clangd binary you want to use, or make sure the bundled Chromium clangd is present.'
+    ].join(' ');
+  }
+
+  return [
+    'clangd is not configured for this workspace.',
+    'PATH fallback is intentionally disabled.',
+    `Project root: ${projectRoot}`,
+    'Set CLANGD_PATH to the clangd binary you want to use.',
+    `Example: CLANGD_PATH=/absolute/path/to/clangd ${process.argv[1] ?? 'clangd-mcp-server'}`
+  ].join(' ');
+}
+
 /**
  * Detect project configuration and generate appropriate clangd settings
  */
@@ -108,10 +129,7 @@ export function detectConfiguration(): ClangdConfig {
       clangdPath = projectClangd;
       logger.info('Using project bundled clangd:', clangdPath);
     } else {
-      throw new Error(
-        'clangd not found. Expected bundled clangd at third_party/llvm-build/Release+Asserts/bin/clangd ' +
-        `under project root ${projectRoot}. Set CLANGD_PATH environment variable to specify a custom clangd path.`
-      );
+      throw new Error(getMissingClangdErrorMessage(projectRoot, isChromiumProject));
     }
   }
 

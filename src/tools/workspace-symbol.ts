@@ -48,7 +48,6 @@ export async function workspaceSymbolSearch(
       found: false,
       message: `No symbols found matching '${query}'`,
       ...(indexStatus ? {
-        index_status: indexStatus,
         note: getBackgroundIndexNote(indexStatus)
       } : {})
     }, null, 2);
@@ -74,7 +73,6 @@ export async function workspaceSymbolSearch(
     truncated: symbols.length > limit,
     symbols: formattedSymbols,
     ...(indexStatus ? {
-      index_status: indexStatus,
       note: getBackgroundIndexNote(indexStatus)
     } : {})
   }, null, 2);

@@ -38,6 +38,7 @@ describe('ClangdManager', () => {
       enabled: false,
       in_progress: false
     });
+    expect(manager.getBackgroundIndexCompletionBasis()).toBe('none');
   });
 
   it('reports partial before the first background index completes', () => {
@@ -81,6 +82,7 @@ describe('ClangdManager', () => {
       total_files: 6,
       message: '3/6'
     });
+    expect(manager.getBackgroundIndexCompletionBasis()).toBe('none');
   });
 
   it('reports partial when indexing has settled without strong completion evidence', () => {
@@ -97,6 +99,7 @@ describe('ClangdManager', () => {
       enabled: true,
       in_progress: false
     });
+    expect(manager.getBackgroundIndexCompletionBasis()).toBe('none');
   });
 
   it('reports completed after a strong completion signal and cycle end', () => {
@@ -123,6 +126,7 @@ describe('ClangdManager', () => {
       total_files: 6,
       message: '6/6'
     });
+    expect(manager.getBackgroundIndexCompletionBasis()).toBe('progress');
   });
 
   it('clears stale progress tracking state', () => {
@@ -183,6 +187,30 @@ describe('ClangdManager', () => {
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       expect.stringContaining('INFO'),
       expect.stringContaining('clangd_pid 4242')
+    );
+  });
+
+  it('logs background index progress summaries instead of raw file-level stderr', () => {
+    const manager = new ClangdManager(config);
+    const managerAny = manager as any;
+    managerAny.process = { pid: 4242 };
+    managerAny.activeProgressTokens.set('background-index', {
+      title: 'Background index',
+      isIndexProgress: true,
+      startedAtMs: Date.now(),
+      updatedAtMs: Date.now(),
+      sawStrongCompletionSignal: false
+    });
+
+    managerAny.handleProgressReport('background-index', {
+      kind: 'report',
+      percentage: 89,
+      message: '1505/1697'
+    });
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('INFO'),
+      expect.stringContaining('Background index progress (clangd_pid 4242): 1505/1697 files 89%')
     );
   });
 });

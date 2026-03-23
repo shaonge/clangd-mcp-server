@@ -17,6 +17,7 @@ interface InitializeResult {
 }
 
 export type BackgroundIndexState = 'disabled' | 'indexing' | 'partial' | 'completed';
+export type BackgroundIndexCompletionBasis = 'none' | 'progress' | 'coverage';
 
 export interface BackgroundIndexStatus {
   state: BackgroundIndexState;
@@ -397,6 +398,10 @@ export class ClangdManager {
     return this.getBackgroundIndexStatus().state;
   }
 
+  getBackgroundIndexCompletionBasis(): BackgroundIndexCompletionBasis {
+    return this.getBackgroundIndexCompletionBasisForState(this.getBackgroundIndexState());
+  }
+
   /**
    * Return a structured background indexing status view for tool responses.
    */
@@ -455,6 +460,20 @@ export class ClangdManager {
     };
   }
 
+  private getBackgroundIndexCompletionBasisForState(
+    state: BackgroundIndexState
+  ): BackgroundIndexCompletionBasis {
+    switch (state) {
+      case 'completed':
+        // Current "completed" is inferred from clangd progress only.
+        return 'progress';
+      case 'disabled':
+      case 'indexing':
+      case 'partial':
+        return 'none';
+    }
+  }
+
   private handleProgressBegin(token: string | number, value: any): void {
     const now = Date.now();
     const title = typeof value.title === 'string' ? value.title : '';
@@ -486,7 +505,13 @@ export class ClangdManager {
       this.backgroundIndexProgressPercentage = this.toOptionalNumber(value.percentage);
     }
 
-    logger.info(`Progress started [${token}]: ${title}`);
+    if (isIndexProgress) {
+      logger.info(
+        `Background index started (clangd_pid ${this.getProcessPid()}): ${title || String(token)}`
+      );
+    } else {
+      logger.info(`Progress started [${token}]: ${title}`);
+    }
   }
 
   private handleProgressReport(token: string | number, value: any): void {
@@ -524,6 +549,15 @@ export class ClangdManager {
       this.backgroundIndexMessage = message;
       this.backgroundIndexHasStrongCompletionSignal =
         this.backgroundIndexHasStrongCompletionSignal || sawStrongCompletionSignal;
+
+      logger.info(
+        `Background index progress (clangd_pid ${this.getProcessPid()}): ${this.formatBackgroundIndexProgress(
+          counts?.current,
+          counts?.total,
+          progressPercentage,
+          message
+        )}`
+      );
     }
 
     const pct = progressPercentage != null ? ` ${progressPercentage}%` : '';
@@ -544,9 +578,42 @@ export class ClangdManager {
       if (!this.isBackgroundIndexing()) {
         this.backgroundIndexCycleEnded = true;
       }
+
+      logger.info(
+        `Background index ended (clangd_pid ${this.getProcessPid()}): ${this.formatBackgroundIndexProgress(
+          info?.indexedFiles,
+          info?.totalFiles,
+          info?.progressPercentage,
+          info?.message ?? info?.title
+        )}`
+      );
+      return;
     }
 
     logger.info(`Progress ended [${token}]: ${info?.title || ''}`);
+  }
+
+  private formatBackgroundIndexProgress(
+    indexedFiles: number | undefined,
+    totalFiles: number | undefined,
+    progressPercentage: number | undefined,
+    message: string | undefined
+  ): string {
+    const parts: string[] = [];
+
+    if (indexedFiles != null && totalFiles != null) {
+      parts.push(`${indexedFiles}/${totalFiles} files`);
+    }
+
+    if (progressPercentage != null) {
+      parts.push(`${progressPercentage}%`);
+    }
+
+    if (parts.length > 0) {
+      return parts.join(' ');
+    }
+
+    return message || 'progress update';
   }
 
   private isIndexProgressToken(token: string | number, title?: string): boolean {

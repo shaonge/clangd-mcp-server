@@ -16,15 +16,15 @@ describe('index-aware-response', () => {
     };
 
     const result = getIndexAwareResponseExtras(
-      { getBackgroundIndexStatus: () => status },
+      {
+        getBackgroundIndexStatus: () => status,
+        getBackgroundIndexCompletionBasis: () => 'none'
+      },
       { operation: 'Reference search', resultEmpty: true }
     );
 
     expect(result).toEqual({
-      index_status: status,
-      note: 'Background indexing has not reached confirmed full workspace coverage yet. Reference search may be incomplete.',
-      result_confidence: 'low',
-      empty_result_is_authoritative: false
+      note: 'Background indexing has not reached confirmed full workspace coverage yet. Reference search may be incomplete.'
     });
   });
 
@@ -39,15 +39,15 @@ describe('index-aware-response', () => {
     };
 
     const result = getIndexAwareResponseExtras(
-      { getBackgroundIndexStatus: () => status },
+      {
+        getBackgroundIndexStatus: () => status,
+        getBackgroundIndexCompletionBasis: () => 'progress'
+      },
       { operation: 'Definition lookup', resultEmpty: true }
     );
 
     expect(result).toEqual({
-      index_status: status,
-      note: 'Background indexing activity appears complete, but full workspace coverage is inferred from clangd progress only. Definition lookup may still miss cross-file results.',
-      result_confidence: 'low',
-      empty_result_is_authoritative: false
+      note: 'Background indexing activity appears complete, but full workspace coverage is inferred from clangd progress only. Definition lookup may still miss cross-file results.'
     });
   });
 
@@ -59,7 +59,10 @@ describe('index-aware-response', () => {
     };
 
     const result = getIndexAwareResponseExtras(
-      { getBackgroundIndexStatus: () => status },
+      {
+        getBackgroundIndexStatus: () => status,
+        getBackgroundIndexCompletionBasis: () => 'progress'
+      },
       { operation: 'Call hierarchy', resultEmpty: false }
     );
 

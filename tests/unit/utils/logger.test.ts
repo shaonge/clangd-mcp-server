@@ -102,4 +102,22 @@ describe('Logger utilities', () => {
       expect.stringContaining('pid check')
     );
   });
+
+  it('should default to INFO level when LOG_LEVEL is unset', async () => {
+    delete process.env.LOG_LEVEL;
+    jest.resetModules();
+    const { logger } = await import('../../../src/utils/logger.js');
+
+    logger.info('info message');
+    logger.debug('debug message');
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('INFO'),
+      expect.stringContaining('info message')
+    );
+    expect(consoleErrorSpy).not.toHaveBeenCalledWith(
+      expect.stringContaining('DEBUG'),
+      expect.stringContaining('debug message')
+    );
+  });
 });

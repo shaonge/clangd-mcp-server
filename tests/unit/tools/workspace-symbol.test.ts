@@ -74,7 +74,6 @@ describe('workspaceSymbolSearch', () => {
     });
     const parsed = JSON.parse(result);
 
-    expect(parsed.index_status).toEqual(indexStatus);
     expect(parsed.note).toContain('not reached confirmed full workspace coverage yet');
   });
 
@@ -147,7 +146,6 @@ describe('workspaceSymbolSearch', () => {
     });
     const parsed = JSON.parse(result);
 
-    expect(parsed.index_status).toEqual(indexStatus);
     expect(parsed.note).toContain('Background indexing is disabled');
   });
 });

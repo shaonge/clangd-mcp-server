@@ -22,7 +22,7 @@ export class DiagnosticsCache {
       const uri = params.uri as string;
       const diagnostics = params.diagnostics as Diagnostic[];
 
-      logger.debug(`Received diagnostics for ${uri}: ${diagnostics.length} items`);
+      logger.info(`Received diagnostics for ${uri}: ${diagnostics.length} items`);
 
       // Update cache
       this.cache.set(uri, diagnostics);
@@ -123,7 +123,10 @@ export async function getDiagnostics(
 
   // Get diagnostics from cache (or wait for them)
   const diagnostics = await diagnosticsCache.getDiagnostics(uri, forceRefresh);
+  return formatDiagnosticsResult(diagnostics, filePath);
+}
 
+function formatDiagnosticsResult(diagnostics: Diagnostic[], filePath: string): string {
   // Count by severity
   const counts = {
     errors: 0,

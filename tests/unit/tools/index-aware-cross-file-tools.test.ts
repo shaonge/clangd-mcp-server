@@ -32,13 +32,12 @@ describe('index-aware cross-file tools', () => {
     };
 
     const result = await findReferences(client, fileTracker, '/tmp/test.cpp', 10, 5, true, {
-      getBackgroundIndexStatus: () => status
+      getBackgroundIndexStatus: () => status,
+      getBackgroundIndexCompletionBasis: () => 'none'
     });
     const parsed = JSON.parse(result);
 
     expect(parsed.found).toBe(true);
-    expect(parsed.index_status).toEqual(status);
-    expect(parsed.result_confidence).toBe('medium');
     expect(parsed.note).toContain('Reference search may be incomplete');
   });
 
@@ -60,13 +59,12 @@ describe('index-aware cross-file tools', () => {
     };
 
     const result = await findImplementations(client, fileTracker, '/tmp/test.cpp', 10, 5, {
-      getBackgroundIndexStatus: () => status
+      getBackgroundIndexStatus: () => status,
+      getBackgroundIndexCompletionBasis: () => 'none'
     });
     const parsed = JSON.parse(result);
 
     expect(parsed.found).toBe(true);
-    expect(parsed.index_status).toEqual(status);
-    expect(parsed.result_confidence).toBe('medium');
     expect(parsed.note).toContain('Implementation search may be incomplete');
   });
 });

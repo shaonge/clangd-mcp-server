@@ -29,6 +29,7 @@ import { getDocumentSymbols } from './tools/document-symbols.js';
 import { getDiagnostics, DiagnosticsCache } from './tools/get-diagnostics.js';
 import { getCallHierarchy } from './tools/get-call-hierarchy.js';
 import { getTypeHierarchy } from './tools/get-type-hierarchy.js';
+import type { IndexAwareToolOptions } from './tools/index-aware-response.js';
 
 // Global state
 let clangdManager: ClangdManager | null = null;
@@ -108,6 +109,52 @@ async function openSeedFile(compileCommandsPath?: string): Promise<void> {
     logger.info('Opening seed file to trigger compilation database loading:', seedFile);
     await fileTracker.ensureFileOpen(seedFile);
   }
+}
+
+function getIndexAwareToolOptions(manager: ClangdManager): IndexAwareToolOptions {
+  return {
+    getBackgroundIndexStatus: () => manager.getBackgroundIndexStatus(),
+    getBackgroundIndexCompletionBasis: () => manager.getBackgroundIndexCompletionBasis()
+  };
+}
+
+function summarizeToolArgs(name: string, args: any): Record<string, unknown> {
+  switch (name) {
+    case 'find_definition':
+    case 'find_references':
+    case 'get_hover':
+    case 'find_implementations':
+    case 'get_call_hierarchy':
+    case 'get_type_hierarchy':
+      return {
+        file_path: args.file_path,
+        line: args.line,
+        column: args.column,
+        ...(name === 'find_references' ? { include_declaration: args.include_declaration !== false } : {})
+      };
+    case 'get_document_symbols':
+      return { file_path: args.file_path };
+    case 'get_diagnostics':
+      return {
+        file_path: args.file_path,
+        force_refresh: args.force_refresh === true
+      };
+    default:
+      return {};
+  }
+}
+
+function logToolCallStarted(name: string, args: any): number {
+  const startedAt = Date.now();
+  logger.info('Tool call started:', name, summarizeToolArgs(name, args));
+  return startedAt;
+}
+
+function buildToolResponse(name: string, result: string, startedAtMs: number) {
+  logger.info(`Tool call completed: ${name} in ${Date.now() - startedAtMs}ms`);
+  return {
+    content: [{ type: 'text', text: result }]
+  };
 }
 
 /**
@@ -373,8 +420,10 @@ async function main() {
 
   // Handle tool calls
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    let toolName: string | undefined;
     try {
       const { name, arguments: args } = request.params;
+      toolName = name;
 
       if (!args) {
         throw new Error('Missing arguments for tool call');
@@ -382,6 +431,7 @@ async function main() {
 
       // Validate arguments before initialization
       validateToolArgs(name, args);
+      const startedAtMs = logToolCallStarted(name, args);
 
       // Initialize clangd on first tool call
       await ensureClangdInitialized();
@@ -399,9 +449,7 @@ async function main() {
             (args.line as number) - 1,
             (args.column as number) - 1
           );
-          return {
-            content: [{ type: 'text', text: result }]
-          };
+          return buildToolResponse(name, result, startedAtMs);
         }
 
         case 'find_references': {
@@ -412,13 +460,9 @@ async function main() {
             (args.line as number) - 1,
             (args.column as number) - 1,
             args.include_declaration !== false,
-            {
-              getBackgroundIndexStatus: () => clangdManager!.getBackgroundIndexStatus()
-            }
+            getIndexAwareToolOptions(clangdManager)
           );
-          return {
-            content: [{ type: 'text', text: result }]
-          };
+          return buildToolResponse(name, result, startedAtMs);
         }
 
         case 'get_hover': {
@@ -429,9 +473,7 @@ async function main() {
             (args.line as number) - 1,
             (args.column as number) - 1
           );
-          return {
-            content: [{ type: 'text', text: result }]
-          };
+          return buildToolResponse(name, result, startedAtMs);
         }
 
         case 'find_implementations': {
@@ -441,13 +483,9 @@ async function main() {
             args.file_path as string,
             (args.line as number) - 1,
             (args.column as number) - 1,
-            {
-              getBackgroundIndexStatus: () => clangdManager!.getBackgroundIndexStatus()
-            }
+            getIndexAwareToolOptions(clangdManager)
           );
-          return {
-            content: [{ type: 'text', text: result }]
-          };
+          return buildToolResponse(name, result, startedAtMs);
         }
 
         case 'get_document_symbols': {
@@ -456,9 +494,7 @@ async function main() {
             fileTracker,
             args.file_path as string
           );
-          return {
-            content: [{ type: 'text', text: result }]
-          };
+          return buildToolResponse(name, result, startedAtMs);
         }
 
         case 'get_diagnostics': {
@@ -471,9 +507,7 @@ async function main() {
             args.file_path as string,
             args.force_refresh === true
           );
-          return {
-            content: [{ type: 'text', text: result }]
-          };
+          return buildToolResponse(name, result, startedAtMs);
         }
 
         case 'get_call_hierarchy': {
@@ -483,13 +517,9 @@ async function main() {
             args.file_path as string,
             (args.line as number) - 1,
             (args.column as number) - 1,
-            {
-              getBackgroundIndexStatus: () => clangdManager!.getBackgroundIndexStatus()
-            }
+            getIndexAwareToolOptions(clangdManager)
           );
-          return {
-            content: [{ type: 'text', text: result }]
-          };
+          return buildToolResponse(name, result, startedAtMs);
         }
 
         case 'get_type_hierarchy': {
@@ -499,20 +529,20 @@ async function main() {
             args.file_path as string,
             (args.line as number) - 1,
             (args.column as number) - 1,
-            {
-              getBackgroundIndexStatus: () => clangdManager!.getBackgroundIndexStatus()
-            }
+            getIndexAwareToolOptions(clangdManager)
           );
-          return {
-            content: [{ type: 'text', text: result }]
-          };
+          return buildToolResponse(name, result, startedAtMs);
         }
 
         default:
           throw new Error(`Unknown tool: ${name}`);
       }
     } catch (error) {
-      logger.error('Tool call failed:', error);
+      if (toolName) {
+        logger.error(`Tool call failed: ${toolName}`, error);
+      } else {
+        logger.error('Tool call failed:', error);
+      }
       return {
         content: [
           {
