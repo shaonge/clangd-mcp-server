@@ -13,6 +13,8 @@ export interface HierarchyResult<TItem, TIncoming, TOutgoing> {
   item: TItem;
   incoming: TIncoming[];
   outgoing: TOutgoing[];
+  incomingError?: unknown;
+  outgoingError?: unknown;
 }
 
 /**
@@ -50,20 +52,36 @@ export async function fetchTwoPhaseHierarchy<TItem, TIncoming, TOutgoing>(
   logger.debug(`Found hierarchy item: ${JSON.stringify(item)}`);
 
   // Phase 2: Query incoming and outgoing relationships in parallel
-  const [incoming, outgoing] = await Promise.all([
-    lspClient.request(incomingMethod, { item }).catch(error => {
-      logger.warn(`${incomingMethod} failed:`, error);
-      return null;
-    }),
-    lspClient.request(outgoingMethod, { item }).catch(error => {
-      logger.warn(`${outgoingMethod} failed:`, error);
-      return null;
-    })
-  ]);
+  let incomingError: unknown;
+  let outgoingError: unknown;
 
-  return {
+  const incomingPromise = lspClient.request(incomingMethod, { item }).catch(error => {
+    incomingError = error;
+    logger.warn(`${incomingMethod} failed:`, error);
+    return null;
+  });
+
+  const outgoingPromise = lspClient.request(outgoingMethod, { item }).catch(error => {
+    outgoingError = error;
+    logger.warn(`${outgoingMethod} failed:`, error);
+    return null;
+  });
+
+  const [incoming, outgoing] = await Promise.all([incomingPromise, outgoingPromise]);
+
+  const result: HierarchyResult<TItem, TIncoming, TOutgoing> = {
     item,
     incoming: incoming || [],
     outgoing: outgoing || []
   };
+
+  if (incomingError !== undefined) {
+    result.incomingError = incomingError;
+  }
+
+  if (outgoingError !== undefined) {
+    result.outgoingError = outgoingError;
+  }
+
+  return result;
 }

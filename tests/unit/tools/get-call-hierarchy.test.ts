@@ -6,7 +6,12 @@ import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import { getCallHierarchy } from '../../../src/tools/get-call-hierarchy.js';
 import { FileTracker } from '../../../src/file-tracker.js';
 import { LSPClient } from '../../../src/lsp-client.js';
-import { MockWritableStream, MockReadableStream, sendLSPMessage } from '../../helpers/mock-streams.js';
+import {
+  MockWritableStream,
+  MockReadableStream,
+  parseLSPMessages,
+  sendLSPMessage
+} from '../../helpers/mock-streams.js';
 import {
   mockCallHierarchyItem,
   mockCallHierarchyIncomingCalls,
@@ -337,6 +342,49 @@ describe('get-call-hierarchy', () => {
       const parsed = JSON.parse(result);
 
       expect(parsed.symbol.kind).toBe('Unknown(999)');
+    });
+
+    it('should note when outgoing calls are unsupported by clangd', async () => {
+      const promise = getCallHierarchy(client, fileTracker, testFile, 10, 5);
+
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      sendLSPMessage(stdout, {
+        jsonrpc: '2.0',
+        id: 1,
+        result: [mockCallHierarchyItem]
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      sendLSPMessage(stdout, {
+        jsonrpc: '2.0',
+        id: 2,
+        result: mockCallHierarchyIncomingCalls
+      });
+
+      sendLSPMessage(stdout, {
+        jsonrpc: '2.0',
+        id: 3,
+        error: {
+          code: -32601,
+          message: 'method not found'
+        }
+      });
+
+      const result = await promise;
+      const parsed = JSON.parse(result);
+      const requests = parseLSPMessages(stdin.getWrittenData())
+        .filter((message) => message.method);
+
+      expect(parsed.found).toBe(true);
+      expect(parsed.incoming_calls).toHaveLength(2);
+      expect(parsed.outgoing_calls).toHaveLength(0);
+      expect(parsed.note).toContain('does not support callHierarchy/outgoingCalls');
+      expect(requests).toHaveLength(4);
+      expect(requests[1].method).toBe('textDocument/prepareCallHierarchy');
+      expect(requests[2].method).toBe('callHierarchy/incomingCalls');
+      expect(requests[3].method).toBe('callHierarchy/outgoingCalls');
     });
   });
 });

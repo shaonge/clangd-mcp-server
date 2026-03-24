@@ -5,7 +5,7 @@
 import { LSPClient } from '../lsp-client.js';
 import { FileTracker } from '../file-tracker.js';
 import { uriToPath } from '../utils/uri.js';
-import { withRetry } from '../utils/errors.js';
+import { LSPError, withRetry } from '../utils/errors.js';
 import {
   CallHierarchyItem,
   CallHierarchyIncomingCall,
@@ -96,12 +96,18 @@ export async function getCallHierarchy(
     };
   });
 
-  return JSON.stringify({
+  const response: Record<string, unknown> = {
     found: true,
     symbol: mainSymbol,
     incoming_calls: incomingCalls,
     incoming_count: incomingCalls.length,
     outgoing_calls: outgoingCalls,
     outgoing_count: outgoingCalls.length
-  }, null, 2);
+  };
+
+  if (result.outgoingError instanceof LSPError && result.outgoingError.code === -32601) {
+    response.note = 'Current clangd version does not support callHierarchy/outgoingCalls. Outgoing calls are omitted.';
+  }
+
+  return JSON.stringify(response, null, 2);
 }
